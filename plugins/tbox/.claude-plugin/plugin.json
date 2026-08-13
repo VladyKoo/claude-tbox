@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "tbox",
+  "displayName": "Toolbox",
+  "description": "Worktree lifecycle and layered PR review commands",
+  "version": "1.0.0",
+  "author": {
+    "name": "VladyKoo",
+    "email": "vladyrais@gmail.com"
+  },
+  "license": "MIT",
+  "keywords": ["worktree", "git", "code-review", "pull-request", "codex"],
+  "dependencies": [
+    {
+      "name": "codex",
+      "marketplace": "openai-codex"
+    }
+  ]
+}

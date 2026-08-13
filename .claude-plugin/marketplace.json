@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "tbox",
+  "owner": {
+    "name": "VladyKoo",
+    "email": "vladyrais@gmail.com"
+  },
+  "description": "Personal Claude Code plugins: worktree lifecycle and layered PR review",
+  "allowCrossMarketplaceDependenciesOn": ["openai-codex"],
+  "plugins": [
+    {
+      "name": "tbox",
+      "source": "./plugins/tbox",
+      "displayName": "Toolbox",
+      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove) and layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review)",
+      "version": "1.0.0",
+      "author": {
+        "name": "VladyKoo"
+      },
+      "license": "MIT",
+      "keywords": ["worktree", "git", "code-review", "pull-request", "codex"],
+      "category": "workflow",
+      "tags": ["worktree", "review", "workflow"]
+    }
+  ]
+}
