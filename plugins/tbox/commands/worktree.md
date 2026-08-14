@@ -201,6 +201,21 @@ EnterWorktree({ path: "<WORKTREES_DIR>/<PROJECT>/$1" })
 Pass `path`, never `name`. `name` would place the worktree under the project's
 own `.claude/worktrees/`, which defeats the central-folder goal.
 
+**If this call is declined or fails, carry on to Step 6 anyway.** Entering is a
+convenience, not the deliverable — `git worktree add` has already succeeded by
+this point, so the checkout, its branch and its base are all exactly as
+requested whether or not the session moves into it. Declining is a normal
+choice: it means the worktree gets opened in a separate VS Code window or a
+separate session, and the current one keeps the context it already has. Do not
+retry it, do not treat it as an error, and above all do not stop and leave the
+worktree unregistered — a worktree missing from the workspace file is a worse
+outcome than a session that stayed put, because it is the part the user cannot
+easily notice is missing.
+
+Note that the "report the error and stop" rule just above applies to
+`worktree add` only. That one aborts because a failure there means the world
+changed since Step 3 and forcing past it loses work. Nothing is at risk here.
+
 ## Step 6 — register it in the .code-workspace
 
 Read `WORKSPACE_FILE` and add one entry to the `"folders"` array:
@@ -240,5 +255,9 @@ State plainly:
   came from `origin/HEAD` or a fallback
 - that it is registered in the workspace file as `<PROJECT> [$1]`, and that
   VS Code needs the workspace reopened for the new folder to appear
+- whether the session is now inside the worktree. If `EnterWorktree` was
+  declined or failed, say the session stayed in the main checkout and name the
+  branch it is still on, so it is obvious that a later edit would land on the
+  wrong branch.
 
 Then stop. Do not begin work in the worktree, and do not offer to.
