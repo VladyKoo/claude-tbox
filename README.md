@@ -27,7 +27,7 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 
 | Command | Purpose |
 | --- | --- |
-| `/tbox:worktree <task> [project]` | Create a worktree off the remote default branch in the central worktrees folder, register it in the enclosing `.code-workspace`, and enter it |
+| `/tbox:worktree <task> [project]` | Create a worktree off the remote default branch in the central worktrees folder, register it in the enclosing `.code-workspace`, and offer to enter it |
 | `/tbox:worktree-remove [task] [project]` | Remove that worktree, its branch, and its workspace entry |
 | `/tbox:cross-review <pr> [--wait] [--regular]` | Review a PR with Codex plus an independent Claude pass |
 | `/tbox:cross-review-n <pr> [cycles=3]` | Run cross-review N times with rotating focus lenses, then vote-count the findings |
@@ -51,12 +51,25 @@ and nowhere else — this plugin is the only thing that writes it.
 
 ## Release
 
-Bump `version` in **both** `plugins/tbox/.claude-plugin/plugin.json` and the
-marketplace entry (they must agree), then:
+**Any commit that changes a shipped file bumps the version.** A command, a skill,
+an agent, a template — if it lands in the plugin, the same commit bumps `version`
+in **both** `plugins/tbox/.claude-plugin/plugin.json` and the marketplace entry in
+`.claude-plugin/marketplace.json`. They must agree.
+
+This is not bookkeeping. `/plugin update` compares the manifest version, **not the
+commit sha**: with the version unchanged it answers `already at the latest version`
+and copies nothing, so the push looks successful and every install silently keeps
+running the old file. The plugin cache is version-keyed
+(`cache/<marketplace>/<plugin>/<version>/`), which is also how you tell by eye
+which copy is live.
+
+Then:
 
 ```
 claude plugin validate ./plugins/tbox --strict
 claude plugin tag --push
 ```
 
-Consumers pick it up via `/plugin marketplace update` then `/plugin update`.
+Consumers pick it up via `/plugin marketplace update tbox` then
+`/plugin update tbox@tbox`, and a session restart — commands and skills are read
+at startup.
