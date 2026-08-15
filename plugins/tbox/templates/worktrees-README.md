@@ -6,7 +6,8 @@ stashing or switching branches in the main checkout.
 
 Created by the `tbox` Claude Code plugin:
 
-- `/tbox:worktree <task> [project]` — create a leaf and move the session into it
+- `/tbox:worktree <task> [project]` — create a leaf and register it in the
+  workspace; moving the session into it is offered at the end, never assumed
 - `/tbox:worktree-remove [task] [project]` — remove a leaf, its branch, and its
   workspace entry
 

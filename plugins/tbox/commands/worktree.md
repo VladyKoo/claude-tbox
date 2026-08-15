@@ -191,31 +191,6 @@ a different name, or `--force`. Report the error and stop — a failure here
 means the world changed since Step 3, and forcing past it is how work gets
 lost.
 
-Then switch the session into it with the native tool — this is what makes the
-rest of the session operate inside the worktree:
-
-```
-EnterWorktree({ path: "<WORKTREES_DIR>/<PROJECT>/$1" })
-```
-
-Pass `path`, never `name`. `name` would place the worktree under the project's
-own `.claude/worktrees/`, which defeats the central-folder goal.
-
-**If this call is declined or fails, carry on to Step 6 anyway.** Entering is a
-convenience, not the deliverable — `git worktree add` has already succeeded by
-this point, so the checkout, its branch and its base are all exactly as
-requested whether or not the session moves into it. Declining is a normal
-choice: it means the worktree gets opened in a separate VS Code window or a
-separate session, and the current one keeps the context it already has. Do not
-retry it, do not treat it as an error, and above all do not stop and leave the
-worktree unregistered — a worktree missing from the workspace file is a worse
-outcome than a session that stayed put, because it is the part the user cannot
-easily notice is missing.
-
-Note that the "report the error and stop" rule just above applies to
-`worktree add` only. That one aborts because a failure there means the world
-changed since Step 3 and forcing past it loses work. Nothing is at risk here.
-
 ## Step 6 — register it in the .code-workspace
 
 Read `WORKSPACE_FILE` and add one entry to the `"folders"` array:
@@ -255,9 +230,31 @@ State plainly:
   came from `origin/HEAD` or a fallback
 - that it is registered in the workspace file as `<PROJECT> [$1]`, and that
   VS Code needs the workspace reopened for the new folder to appear
-- whether the session is now inside the worktree. If `EnterWorktree` was
-  declined or failed, say the session stayed in the main checkout and name the
-  branch it is still on, so it is obvious that a later edit would land on the
-  wrong branch.
+- that the session is still in the main checkout, naming the branch it is on, so
+  it is obvious that a later edit would land on that branch and not on `$1`
+
+If Step 6 was skipped because no `.code-workspace` was found, say so here.
+
+## Step 8 — offer to enter, and stop
+
+End the report with exactly this line, as the last thing in the message:
+
+> Enter the worktree?
+
+Keep it verbatim. A longer, more helpful sign-off suppresses Claude Code's
+prompt suggestion, which is what puts "enter the worktree" one Tab away.
+
+**Do not call `EnterWorktree` to make the offer.** A permission prompt is not a
+question — declining one aborts the turn, whereas declining a sentence costs the
+user nothing. Wait for an actual answer.
+
+Only if the user then asks to switch, call:
+
+```
+EnterWorktree({ path: "<WORKTREES_DIR>/<PROJECT>/$1" })
+```
+
+Pass `path`, never `name`. `name` would place the worktree under the project's
+own `.claude/worktrees/`, which defeats the central-folder goal.
 
 Then stop. Do not begin work in the worktree, and do not offer to.
