@@ -3,7 +3,7 @@
   "name": "tbox",
   "displayName": "Toolbox",
   "description": "Worktree lifecycle and layered PR review commands",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "VladyKoo",
     "email": "vladyrais@gmail.com"
