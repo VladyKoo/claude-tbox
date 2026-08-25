@@ -5,20 +5,20 @@
     "name": "VladyKoo",
     "email": "vladyrais@gmail.com"
   },
-  "description": "Personal Claude Code plugins: worktree lifecycle and layered PR review",
+  "description": "Personal Claude Code plugins: worktree lifecycle, layered PR review, and OpenSpec change review",
   "allowCrossMarketplaceDependenciesOn": ["openai-codex"],
   "plugins": [
     {
       "name": "tbox",
       "source": "./plugins/tbox",
-      "displayName": "Toolbox",
-      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove) and layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review)",
-      "version": "1.0.1",
+      "displayName": "toolbox",
+      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), and OpenSpec change review (/tbox:openspec-review)",
+      "version": "1.1.0",
       "author": {
         "name": "VladyKoo"
       },
       "license": "MIT",
-      "keywords": ["worktree", "git", "code-review", "pull-request", "codex"],
+      "keywords": ["worktree", "git", "code-review", "pull-request", "codex", "openspec"],
       "category": "workflow",
       "tags": ["worktree", "review", "workflow"]
     }

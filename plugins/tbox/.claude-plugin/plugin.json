@@ -1,15 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "tbox",
-  "displayName": "Toolbox",
-  "description": "Worktree lifecycle and layered PR review commands",
-  "version": "1.0.1",
+  "displayName": "toolbox",
+  "description": "Worktree lifecycle, layered PR review, and OpenSpec change review commands",
+  "version": "1.1.0",
   "author": {
     "name": "VladyKoo",
     "email": "vladyrais@gmail.com"
   },
   "license": "MIT",
-  "keywords": ["worktree", "git", "code-review", "pull-request", "codex"],
+  "keywords": ["worktree", "git", "code-review", "pull-request", "codex", "openspec"],
   "dependencies": [
     {
       "name": "codex",

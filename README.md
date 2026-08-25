@@ -23,7 +23,7 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 
 ## Plugins
 
-### `tbox` — worktree lifecycle + layered PR review
+### `tbox` — worktree lifecycle + layered review
 
 | Command | Purpose |
 | --- | --- |
@@ -32,10 +32,15 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 | `/tbox:cross-review <pr> [--wait] [--regular]` | Review a PR with Codex plus an independent Claude pass |
 | `/tbox:cross-review-n <pr> [cycles=3]` | Run cross-review N times with rotating focus lenses, then vote-count the findings |
 | `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code, then produce a fix plan |
+| `/tbox:openspec-review [change-id] [--wait]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report |
 
 Typical flow: `/tbox:worktree fix-123` → `/tbox:cross-review 123` → `/tbox:audit-review 123`.
 
-**Dependency:** `/tbox:cross-review` and `/tbox:cross-review-n` drive Codex through
+For spec-driven work: write the change, then `/tbox:openspec-review <change-id>` before
+implementing it. It is review-only — it never edits the change, and writes its report to
+the scratchpad rather than into the change directory, which gets archived.
+
+**Dependency:** `/tbox:cross-review`, `/tbox:cross-review-n`, and `/tbox:openspec-review` drive Codex through
 the [`codex`](https://github.com/openai/codex-plugin-cc) plugin, declared in
 `dependencies` and allowlisted via `allowCrossMarketplaceDependenciesOn`. It is
 installed automatically provided the `openai-codex` marketplace is already
