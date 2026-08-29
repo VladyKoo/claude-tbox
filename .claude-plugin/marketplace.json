@@ -12,8 +12,8 @@
       "name": "tbox",
       "source": "./plugins/tbox",
       "displayName": "toolbox",
-      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), and OpenSpec change review (/tbox:openspec-review)",
-      "version": "1.1.0",
+      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), and artifact improvement (/tbox:improve)",
+      "version": "1.2.0",
       "author": {
         "name": "VladyKoo"
       },
