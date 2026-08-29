@@ -26,9 +26,12 @@ The change id is the first argument that matches a directory under
 `openspec/changes/`. `--wait` may appear in any order; all remaining text is
 extra review focus. Below, `<id>` means the resolved change id.
 
-If no change id is given, run `openspec list --json` and pick the most recent
-active change. Name the one you picked and continue — do not ask. If the id
-given matches nothing, run `openspec list` and stop, showing the available ids.
+If no argument matches a directory, decide which case this is: when the first
+non-flag argument is a single id-shaped token (one word, kebab-case), treat it as
+a mistyped id — run `openspec list` and stop, showing the available ids. When the
+arguments are only flags or sentence-like focus text, no id was given: run
+`openspec list --json`, pick the most recent active change, name the one you
+picked, and continue — do not ask.
 
 ## Constraints
 
@@ -68,8 +71,11 @@ unmatched glob aborts the whole command in zsh, so a change with no `specs/`
 directory would read as a broken gate rather than an empty delta set.
 
 **Codex plugin path.** The last command resolves it here, before anything is
-written, because it is a precondition like the others. If it prints nothing the
-Codex plugin is not installed — stop, tell the user, and suggest `/codex:setup`.
+written, because it is a precondition like the others. If it prints nothing —
+or errors with `no matches found`, which is what zsh does when the glob is
+unmatched — the Codex plugin is not installed: stop, tell the user, and suggest
+`/codex:setup`. Run this line as its own Bash call so that failure cannot abort
+the other gate commands.
 Stopping at this point leaves nothing behind; the step-2 bundle does not exist
 yet. Carry the printed path forward as a **literal string** — shell variables do
 not survive between Bash calls.
@@ -101,15 +107,15 @@ whose base spec is absent, or whose requirement heading has drifted from the
 synced text, will validate cleanly and then fail to apply. Read both and compare
 the requirement headings directly.
 
-Record for the bundle: the validate result, the delta inventory, and the
-base-spec check per MODIFIED delta.
+Record for the bundle: the validate result, the delta inventory, the base-spec
+check per MODIFIED delta, and the tree-state line.
 
 ## Step 2 — build the context bundle
 
 Codex's sandbox blocks writes and network but **not** command execution, and it
 reads this worktree directly. So the bundle is not a transport for anything Codex
 could fetch itself — do not paste the change documents or `CLAUDE.md` into it.
-It carries exactly the three things that cannot arrive any other way.
+It carries exactly the four things that cannot arrive any other way.
 
 Write `.openspec-review-context.md` at the repo root:
 
@@ -229,9 +235,9 @@ Give it exactly this and nothing more:
 
 ## Step 5 — collect both
 
-Wait for both to complete; their notifications arrive on their own. Do not read
-either result until both are in hand, and form no findings of your own in the
-meantime. Your role here is synthesis and verification, not a third review.
+Wait for both to complete; their notifications arrive on their own. Do not start
+synthesizing until both results are in hand (in `--wait` mode Codex's stdout
+lands first — set it aside), and form no findings of your own in the meantime. Your role here is synthesis and verification, not a third review.
 
 ## Step 6 — report
 
@@ -260,7 +266,9 @@ its original severity.
 
 ### The session digest — target ~20 lines, hard cap 30
 
-Print exactly these and nothing else.
+Print exactly these and nothing else — and print them **after** step 7's report
+file is written, so the digest and the report path land together in your final
+message. Text emitted before a tool call may never reach the user.
 
 1. **Gate line** — `<id>`, validate result, delta count with operations, the
    base-spec check outcome for each MODIFIED delta, and the tree state

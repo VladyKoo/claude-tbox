@@ -1,6 +1,6 @@
 ---
-description: Cross-review a GitHub PR with Codex plus an independent Claude pass, in the current master-based worktree
-argument-hint: '<pr-number-or-url> [--wait] [--regular] [extra focus text]'
+description: Cross-review a GitHub PR with Codex plus an independent Claude pass, in the current master-based worktree; auto-posts the comment when a verified blocker/major finding survives (suppress with --no-post)
+argument-hint: '<pr-number-or-url> [--wait] [--regular] [--no-post] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
 ---
 
@@ -11,9 +11,9 @@ Raw arguments: `$ARGUMENTS`
 ## Argument parsing
 
 The PR number is the first argument that is either a bare number or a GitHub PR
-URL (extract the trailing number from `.../pull/<n>`). `--wait`, `--regular`, and
-any remaining text may appear in any order; the remaining text is extra review
-focus. If no PR number can be extracted from any argument, stop and ask for it.
+URL (extract the trailing number from `.../pull/<n>`). `--wait`, `--regular`,
+`--no-post`, and any remaining text may appear in any order; the remaining text is
+extra review focus. If no PR number can be extracted from any argument, stop and ask for it.
 Below, `<pr>` means the extracted PR number.
 
 `--regular` selects Codex's standard `review` verb instead of the default
@@ -32,9 +32,10 @@ findings. Below, `<review-verb>` means whichever was selected.
 
 - **Review only.** Do not fix anything, do not apply patches, do not commit,
   do not push, do not approve or request changes.
-- **Never post to the PR during this command.** Step 7 drafts a comment and shows it
-  to the user for verification. Posting is a separate action that requires the user to
-  explicitly ask for it in a later message. Drafting is not permission to post.
+- **Posting is gated.** Step 7 drafts a comment; step 8 posts it automatically only
+  when the mechanical severity rule there is met and `--no-post` was not passed.
+  Outside that rule, posting requires the user to explicitly ask for it in a later
+  message — drafting is not permission to post.
 - Do not offer to implement the findings. Just report them.
 
 ## Step 1 — refuse to clobber uncommitted work
@@ -55,6 +56,10 @@ git checkout --detach FETCH_HEAD
 Use `--detach` deliberately: `gh pr checkout` creates a local branch, and git refuses
 if that branch is live in another worktree. Detached HEAD sidesteps that entirely.
 
+If the fetch fails, the PR number is probably wrong — stop and report it. If the
+checkout fails because an untracked file would be overwritten, stop and show the
+colliding paths — never delete or move the user's files to force the checkout.
+
 Report the resulting commit SHA and subject.
 
 ## Step 3 — read what the PR claims to do, and build the context bundle
@@ -62,7 +67,12 @@ Report the resulting commit SHA and subject.
 ```bash
 gh pr view <pr> --json title,body,baseRefName,headRefName,additions,deletions,changedFiles
 gh pr view <pr> --comments
+gh api "repos/{owner}/{repo}/pulls/<pr>/comments" --paginate
 ```
+
+The `gh api` call is not redundant: `--comments` returns conversation comments and
+review summaries but omits inline code-review threads, which are usually the most
+substantive prior discussion.
 
 Then fetch the PR's base branch so the review baseline is current, not whatever this
 worktree happens to have:
@@ -126,7 +136,9 @@ guarded by surrounding code before flagging it. <one-sentence stated intent>"
 
 Execution mode:
 - If the arguments contain `--wait`, run it in the foreground **after** dispatching
-  the subagent in 4b, so the two still overlap.
+  the subagent in 4b, so the two still overlap. Set the Bash timeout to its maximum
+  (600000 ms) — a review routinely outlives the default timeout, and a killed
+  foreground run wastes the whole pass.
 - Otherwise run it via `Bash(..., run_in_background: true)` and tell the user it
   started. Background commands re-invoke you when they exit, so do **not** poll in a
   loop — once notified of completion, fetch the output with
@@ -220,7 +232,7 @@ per-finding prose, no claims-verified list, no fenced copy of the draft.
 
 If both reviewers came back clean, say so in two sentences and skip the table.
 
-## Step 7 — draft the PR comment (do NOT post it)
+## Step 7 — write the PR comment draft
 
 Write the draft to `<scratchpad>/cross-review-pr-<pr>.md` so it survives and can be
 posted later without regenerating it.
@@ -228,7 +240,7 @@ posted later without regenerating it.
 **Do not print the draft.** It is long by design — full finding sections, failure
 cases, and the claims-verified list — and echoing it into the session is exactly the
 bulk the step 6 digest exists to avoid. The user reads it in the file, or on the PR
-after they ask you to post. Write it, then go straight to the handoff line below.
+once it is posted. Write it, then decide posting in step 8.
 
 Start the draft file with an HTML comment recording exactly what was reviewed, so a
 later "post it" can be staleness-checked:
@@ -236,6 +248,8 @@ later "post it" can be staleness-checked:
 ```markdown
 <!-- cross-review: pr=<pr> head=<full-40-char-sha> base=<baseRefName> -->
 ```
+
+Take the full SHA from `git rev-parse HEAD` — step 2 reported only the short form.
 
 Draft shape — this is the long-form artifact, and it is read by people who did not
 run the review, so it carries the full reasoning the session digest omitted.
@@ -305,27 +319,48 @@ Rules for the draft:
 - Attribute honestly. Do not present a Codex finding as Claude's, or vice versa.
 - No praise padding, no "great work overall" preamble.
 
-After writing it, close with exactly this one line — the last thing in your reply,
-immediately after the step 6 digest:
+## Step 8 — post or hold
+
+Posting is decided by a mechanical rule, not by taste. **Auto-post** the draft iff
+all of these hold:
+
+- `--no-post` was NOT in the arguments;
+- at least one finding survived step 6 synthesis at **blocker or major** severity;
+- that finding is either one **both reviewers raised**, or one **you confirmed
+  against the code** in step 6 (with the `file:line` evidence the dismissal rule
+  demands). A major raised by a single reviewer that you could not verify does not
+  qualify — adversarial mode is deliberately noisy, and an unverified solo major is
+  exactly its noise profile.
+
+Everything below the bar — clean runs, minor/nit-only runs, unverified solo
+majors — is **held**: the draft stays in the file and posting waits for an explicit
+instruction.
+
+**If posting:** run `gh pr comment <pr> --body-file <path>`. No staleness check is
+needed — the review just ran against the current head. Then close with exactly these
+two lines, the last thing in your reply, immediately after the step 6 digest:
+
+> Posted to PR #<pr>: <comment-url>
+> Draft saved to `<path>`
+
+**If holding:** close with exactly this one line instead:
 
 > Draft saved to `<path>`
 
-`<path>` is the **full absolute path**. Never abbreviate it with `...`, never shorten
-the scratchpad prefix, never substitute `~`. The digest is terse everywhere else, but
-this path is the one thing the user copies into a shell or an editor — a truncated
-path is unusable.
+In both cases `<path>` is the **full absolute path**. Never abbreviate it with
+`...`, never shorten the scratchpad prefix, never substitute `~`. The digest is
+terse everywhere else, but this path is the one thing the user copies into a shell
+or an editor — a truncated path is unusable.
 
-Nothing follows that line. Do not explain that nothing was posted, do not spell out
-the posting command, do not offer to revise the draft — the user knows this command
-does not post, and the reminder is noise on every run.
-
-Then stop. Do not post, and do not ask a yes/no question that could be read as
+Nothing follows those lines. When holding, do not explain why the threshold was not
+met beyond one short clause if it would otherwise be surprising, do not spell out
+the posting command, and do not ask a yes/no question that could be read as
 auto-posting on a bare "yes" — wait for an explicit instruction to post.
 
-## When the user later says to post
+## When the user later says to post a held draft
 
-This runs only on an explicit instruction in a later message — never as part of the
-review itself.
+This runs only on an explicit instruction in a later message — never as a retry of
+the step 8 decision.
 
 1. Read the `<!-- cross-review: ... -->` header from the draft file.
 2. Check the PR hasn't moved since the review:

@@ -31,6 +31,8 @@ The review is provided as ONE of the following. Detect which:
             }
           }' -F owner=<owner> -F repo=<repo> -F number=<N>
         ```
+      - Get `<owner>`/`<repo>` by parsing the URL from
+        `gh pr view <N> --json url`.
       - If no PR number is given, use the PR for the current branch
         (`gh pr view --json number,headRefName`).
 
@@ -49,13 +51,17 @@ against:
 - If `git status --porcelain` is non-empty, note that uncommitted changes are
   in play — a finding may read as fixed by work that is not yet committed.
 
-Open the report with: `Verified at <sha> (PR head <sha>) — <clean|N uncommitted files>`.
+This becomes the digest's opening line: `Verified at <sha> (PR head <sha>) — <clean|N uncommitted files>`.
 
 ## ROUNDS
 
 This command is normally run several times against the same PR: the reviewer
 leaves a few comments, I fix them and reply, and ask for another pass. Do not
 re-audit settled ground each round.
+
+In file mode (input (a)) there are no threads: treat every finding as ACTIVE,
+skip the classification below, and the round is 1 unless `--round N` says
+otherwise.
 
 Classify every thread first (needs my login: `gh api user --jq .login`):
 
@@ -168,13 +174,16 @@ findings, not a fresh review pass of your own.
 Only for CONFIRMED or PARTIALLY CORRECT. Order by real severity, then by
 blast radius (fixes others depend on go first).
 
-  ### Fix <n>: <title>  [addresses R<n>-F<m>, R<n>-F<k>]
+  ### Fix <i>: <title>  [addresses R<n>-F<m>, R<n>-F<k>]
   - Files to change: <list>
   - Approach: <2-4 sentences, concrete — name functions/types>
   - Diff sketch: <a few before/after lines, not the full patch>
   - Risk: <what could break; flag public API, schema, behaviour changes>
   - Verification: <test to add/run, or manual check>
   - Effort: S | M | L
+
+`<i>` is a plain 1-based fix sequence number — not the round number `<n>` used
+in finding IDs.
 
 End the report with:
 - "Recommended order" — numbered sequence and why.
@@ -192,7 +201,8 @@ Write the complete Phase 1 + Phase 2 output to:
 
   `<scratchpad>/audit-review-<target>-r<n>.md`
 
-where `<target>` is `pr-<number>` or the review file's basename, and `<n>` is
+where `<target>` is `pr-<number>` or the review file's basename without its
+extension, and `<n>` is
 the round. One file per round, so round 3 sits beside round 2 and the two can
 be diffed — that history is how a regression across rounds becomes visible.
 
@@ -221,7 +231,8 @@ excerpts, no fenced copy of the report.
    |----|---------|--------|---------|----------|
 
    This table is the digest's payload — I should scan it and know what happened
-   without opening the file.
+   without opening the file. It is exempt from the line cap: print one row per
+   finding no matter how many there are; the cap governs everything around it.
 4. **Carried forward** — one line, only if a SETTLED thread regressed. If none
    did, say "no regressions" and move on.
 5. **Replies to post** — the one-liners for ACTIVE threads verbatim, since this
