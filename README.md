@@ -31,10 +31,16 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 | `/tbox:worktree-remove [task] [project]` | Remove that worktree, its branch, and its workspace entry |
 | `/tbox:cross-review <pr> [--wait] [--regular]` | Review a PR with Codex plus an independent Claude pass |
 | `/tbox:cross-review-n <pr> [cycles=3]` | Run cross-review N times with rotating focus lenses, then vote-count the findings |
-| `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code, then produce a fix plan |
+| `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code and decide what to fix, skip, push back on, or ask about |
 | `/tbox:openspec-review [change-id] [--wait]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report |
 
-Typical flow: `/tbox:worktree fix-123` → `/tbox:cross-review 123` → `/tbox:audit-review 123`.
+Typical flow: `/tbox:worktree fix-123` → `/tbox:cross-review 123` → fix → reply → repeat.
+
+`/tbox:audit-review` earns its keep when the review came from someone else — a human
+reviewer, Codex, Copilot, CodeRabbit — and you want each finding verified against the
+code before you act on it. Across passes it tells settled threads from active ones:
+settled threads are spot-checked for regressions, active ones get full verification and a
+drafted reply.
 
 For spec-driven work: write the change, then `/tbox:openspec-review <change-id>` before
 implementing it. It is review-only — it never edits the change, and writes its report to
