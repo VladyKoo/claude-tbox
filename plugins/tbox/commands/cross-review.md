@@ -1,20 +1,31 @@
 ---
-description: Cross-review a GitHub PR with Codex plus an independent Claude pass, in the current master-based worktree; auto-posts the comment when a verified blocker/major finding survives (suppress with --no-post)
-argument-hint: '<pr-number-or-url> [--wait] [--regular] [--no-post] [extra focus text]'
+description: Cross-review a GitHub PR — or, with --local, the uncommitted working tree — with Codex plus an independent Claude pass; auto-posts the PR comment when a verified blocker/major finding survives (suppress with --no-post)
+argument-hint: '<pr-number-or-url> | --local [--wait] [--regular] [--no-post] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
 ---
 
-Cross-review a GitHub PR with Codex and with an independent Claude pass.
+Cross-review a GitHub PR — or the local uncommitted working tree — with Codex and
+with an independent Claude pass.
 
 Raw arguments: `$ARGUMENTS`
 
 ## Argument parsing
 
-The PR number is the first argument that is either a bare number or a GitHub PR
-URL (extract the trailing number from `.../pull/<n>`). `--wait`, `--regular`,
-`--no-post`, and any remaining text may appear in any order; the remaining text is
-extra review focus. If no PR number can be extracted from any argument, stop and ask for it.
-Below, `<pr>` means the extracted PR number.
+Two modes, chosen by the arguments:
+
+- **PR mode** (default): the PR number is the first argument that is either a bare
+  number or a GitHub PR URL (extract the trailing number from `.../pull/<n>`).
+  Below, `<pr>` means the extracted PR number.
+- **Local mode**: `--local` is present. The subject is the working tree of the
+  current directory — staged, unstaged, and untracked changes relative to `HEAD`.
+  Nothing is fetched or checked out, and nothing is ever posted.
+
+`--wait`, `--regular`, `--no-post`, and any remaining text may appear in any order;
+the remaining text is extra review focus. If neither `--local` nor a PR number is
+present, stop and ask for one. If both are present, stop and ask which was meant.
+
+Below, steps marked **PR mode only** are skipped in local mode; each such step
+says what local mode does instead.
 
 `--regular` selects Codex's standard `review` verb instead of the default
 `adversarial-review`. Adversarial is deliberately biased toward finding problems
@@ -23,8 +34,10 @@ findings. Below, `<review-verb>` means whichever was selected.
 
 ## Assumptions about the workspace
 
-- The current directory is a git worktree that was created **from master**. The PR
-  branch is NOT checked out yet.
+- PR mode: the current directory is a git worktree that was created **from master**.
+  The PR branch is NOT checked out yet.
+- Local mode: the current directory is the repo or worktree holding the uncommitted
+  changes. It may be on any branch.
 - Other worktrees for this repo may exist and may already have branches checked out.
 - Never touch or disturb any other worktree.
 
@@ -35,18 +48,27 @@ findings. Below, `<review-verb>` means whichever was selected.
 - **Posting is gated.** Step 7 drafts a comment; step 8 posts it automatically only
   when the mechanical severity rule there is met and `--no-post` was not passed.
   Outside that rule, posting requires the user to explicitly ask for it in a later
-  message — drafting is not permission to post.
+  message — drafting is not permission to post. In local mode there is no PR, so
+  nothing is ever posted.
 - Do not offer to implement the findings. Just report them.
 
-## Step 1 — refuse to clobber uncommitted work
+## Step 1 — check the working tree
 
-Run `git status --short --untracked-files=all`. If there are changes to **tracked**
-files (staged or unstaged), stop and tell the user what is uncommitted — do not check
-anything out. Untracked files do not block a detached checkout: list them for
-awareness and continue. If a leftover `.cross-review-context.md` from a prior run
-exists, delete it now.
+Run `git status --short --untracked-files=all`. If a leftover
+`.cross-review-context.md` from a prior run exists, delete it now.
 
-## Step 2 — bring the PR into this worktree
+**PR mode:** if there are changes to **tracked** files (staged or unstaged), stop and
+tell the user what is uncommitted — do not check anything out. Untracked files do not
+block a detached checkout: list them for awareness and continue.
+
+**Local mode:** the opposite check — if the status is empty, there is nothing to
+review; stop and say so. Otherwise report the counts of staged, unstaged, and
+untracked files, plus `git rev-parse --short HEAD` and the current branch. Untracked
+files are part of the review. Never stage, stash, or otherwise touch the changes.
+
+## Step 2 — bring the PR into this worktree (PR mode only)
+
+Local mode: skip — the changes are already here.
 
 ```bash
 git fetch origin pull/<pr>/head
@@ -62,7 +84,16 @@ colliding paths — never delete or move the user's files to force the checkout.
 
 Report the resulting commit SHA and subject.
 
-## Step 3 — read what the PR claims to do, and build the context bundle
+## Step 3 — read what the change claims to do, and build the context bundle
+
+**Local mode** has no PR to read, so skip every `gh` and `git fetch` call in this
+step and build the bundle from what is available locally: the **Stated intent**
+section is the user's extra focus text if any, otherwise the literal line
+`Not stated — judge the diff on its own terms and flag where the intent is unclear.`
+**Prior review discussion** and **Linked issue** are `none`. **House rules** and
+**Extra focus** are built exactly as below. Then continue at step 4.
+
+**PR mode:**
 
 ```bash
 gh pr view <pr> --json title,body,baseRefName,headRefName,additions,deletions,changedFiles
@@ -125,14 +156,21 @@ consult that skill rather than guessing at flags.
 
 ```bash
 node "<plugin-path>/scripts/codex-companion.mjs" <review-verb> \
-  --base "origin/<baseRefName from step 3>" \
+  <scope-flag> \
   "Before reviewing, read .cross-review-context.md at the repo root — it contains \
-the PR's stated intent, prior review discussion, and this repo's review conventions. \
+the change's stated intent, prior review discussion, and this repo's review conventions. \
 Judge the diff against those. Do not re-raise concerns the prior discussion already \
 resolved. Consult CLAUDE.md and the nearest CLAUDE.md to each changed file for \
 conventions, and check whether a concern is already covered by an existing test or \
 guarded by surrounding code before flagging it. <one-sentence stated intent>"
 ```
+
+`<scope-flag>` is `--base "origin/<baseRefName from step 3>"` in PR mode and
+`--scope working-tree` in local mode. The working-tree scope diffs staged, unstaged,
+and untracked files against `HEAD` — the same set the Claude pass reviews below.
+`.cross-review-context.md` is itself untracked, so Codex will see it in its diff;
+the prompt already tells it what the file is for. Do not pass `--base` in local mode:
+it switches Codex to a committed-branch diff and the uncommitted work is not reviewed.
 
 Execution mode:
 - If the arguments contain `--wait`, run it in the foreground **after** dispatching
@@ -158,12 +196,16 @@ the background, finishes without ever seeing Codex's findings.
 
 Send it a prompt with exactly this information and nothing more:
 
-- The worktree path, the detached head SHA, and the base ref, with the instruction
-  to review `git diff origin/<baseRefName>...HEAD` in that directory.
+- The worktree path and what to diff. PR mode: the detached head SHA and the base
+  ref, with the instruction to review `git diff origin/<baseRefName>...HEAD` in that
+  directory. Local mode: the HEAD SHA, with the instruction to review `git diff HEAD`
+  (staged plus unstaged) and to read in full every file listed by
+  `git ls-files --others --exclude-standard`, except `.cross-review-context.md`.
 - The path to `.cross-review-context.md`, to be read first — the same context Codex
   gets, so the two passes differ in judgment, not in information.
-- Ground rules: **read-only** — no edits, no commits, no checkouts, no network, and
-  do not invoke anything under `~/.claude/plugins` (that is the other reviewer).
+- Ground rules: **read-only** — no edits, no commits, no checkouts, no staging or
+  stashing, no network, and do not invoke anything under `~/.claude/plugins` (that
+  is the other reviewer).
 - Required output: a list of findings, each with `file:line`, severity
   (blocker/major/minor/nit), a one-paragraph description, and the concrete failure
   case — plus a list of PR claims it verified as holding. If the diff is clean, say
@@ -213,8 +255,10 @@ finding either reviewer raised survives into the draft with its original severit
 Print exactly these five things and nothing else. No verbatim reviewer output, no
 per-finding prose, no claims-verified list, no fenced copy of the draft.
 
-1. **Context line** — `<short-sha>` vs `<baseRef>`, `+/−` and file count, and which
-   Codex mode ran (adversarial or regular) so the noise level is legible.
+1. **Context line** — PR mode: `<short-sha>` vs `<baseRef>`, `+/−` and file count.
+   Local mode: `working tree at <short-sha> (<branch>)`, with the staged/unstaged/
+   untracked counts. Both: which Codex mode ran (adversarial or regular) so the noise
+   level is legible.
 2. **Bottom line** — one or two sentences: does anything block merge, and what is
    the single most important thing to act on.
 3. **Findings table** — one row per finding, agreed findings first:
@@ -228,14 +272,16 @@ per-finding prose, no claims-verified list, no fenced copy of the draft.
 4. **Disagreements** — one line each, only where the reviewers conflict or where you
    overrode a severity, naming which call is right. If they agreed throughout, say
    "no disagreements" and move on.
-5. **Worktree state** — path and detached SHA, one line.
+5. **Worktree state** — path and detached SHA (PR mode) or path, branch, and HEAD
+   SHA (local mode), one line.
 
 If both reviewers came back clean, say so in two sentences and skip the table.
 
-## Step 7 — write the PR comment draft
+## Step 7 — write the review draft
 
-Write the draft to `<scratchpad>/cross-review-pr-<pr>.md` so it survives and can be
-posted later without regenerating it.
+Write the draft to `<scratchpad>/cross-review-pr-<pr>.md` (PR mode) or
+`<scratchpad>/cross-review-local-<repo-dir-name>-<short-sha>.md` (local mode) so it
+survives and can be posted, or re-read after fixes, without regenerating it.
 
 **Do not print the draft.** It is long by design — full finding sections, failure
 cases, and the claims-verified list — and echoing it into the session is exactly the
@@ -249,7 +295,16 @@ later "post it" can be staleness-checked:
 <!-- cross-review: pr=<pr> head=<full-40-char-sha> base=<baseRefName> -->
 ```
 
-Take the full SHA from `git rev-parse HEAD` — step 2 reported only the short form.
+In local mode the header is instead:
+
+```markdown
+<!-- cross-review: local head=<full-40-char-sha> branch=<branch> tree=<git-status-hash> -->
+```
+
+where `<git-status-hash>` is the output of `git diff HEAD | git hash-object --stdin`,
+so a later reader can tell whether the tracked changes have moved since the review.
+
+Take the full SHA from `git rev-parse HEAD` — earlier steps reported only the short form.
 
 Draft shape — this is the long-form artifact, and it is read by people who did not
 run the review, so it carries the full reasoning the session digest omitted.
@@ -262,6 +317,12 @@ seconds from the table and be able to jump straight to any finding's detail.
 Reviewed `<short-sha>` against `<baseRef>` (<+/-, files>). Two independent passes —
 OpenAI Codex (<adversarial or regular, per the selected verb>) and Claude — with
 disagreements surfaced rather than merged.
+<!-- local mode: "Reviewed the uncommitted working tree at `<short-sha>` (<branch>;
+<n> staged, <n> unstaged, <n> untracked files)." — keep the rest of the sentence. -->
+<!-- local mode: rename "Claims verified as holding" to "Intent verified as
+holding", or omit it when no intent was stated. -->
+<!-- local mode: replace the last line with
+"🤖 Cross-review by Claude Code + OpenAI Codex — local working tree, not posted." -->
 
 **Bottom line:** <Codex's verdict> vs. <Claude's verdict>, in one or two sentences —
 what (if anything) must change before merge, and what is merely worth doing.
@@ -320,6 +381,10 @@ Rules for the draft:
 - No praise padding, no "great work overall" preamble.
 
 ## Step 8 — post or hold
+
+**Local mode always holds** — there is no PR to post to. Skip the rule below, close
+with the one-line "Draft saved" form, and never suggest committing or opening a PR
+to make the draft postable.
 
 Posting is decided by a mechanical rule, not by taste. **Auto-post** the draft iff
 all of these hold:
