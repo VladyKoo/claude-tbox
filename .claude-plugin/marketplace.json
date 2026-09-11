@@ -12,13 +12,13 @@
       "name": "tbox",
       "source": "./plugins/tbox",
       "displayName": "toolbox",
-      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), and artifact improvement (/tbox:improve)",
-      "version": "1.5.0",
+      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), artifact improvement (/tbox:improve), and semantic merge-conflict resolution (/tbox:smart-merge)",
+      "version": "1.6.0",
       "author": {
         "name": "VladyKoo"
       },
       "license": "MIT",
-      "keywords": ["worktree", "git", "code-review", "pull-request", "codex", "openspec"],
+      "keywords": ["worktree", "git", "code-review", "pull-request", "codex", "openspec", "merge", "rebase"],
       "category": "workflow",
       "tags": ["worktree", "review", "workflow"]
     }

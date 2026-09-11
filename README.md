@@ -33,6 +33,8 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 | `/tbox:cross-review-n <pr> \| --local [cycles=3]` | Run cross-review N times with rotating focus lenses, then vote-count the findings |
 | `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code and decide what to fix, skip, push back on, or ask about |
 | `/tbox:openspec-review [change-id] [--wait]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report |
+| `/tbox:improve [file] [focus]` | Critically review and improve an artifact — code, prompt, skill, doc, or config — preserving its intent and behavior |
+| `/tbox:smart-merge [target-branch]` | Resolve merge/rebase conflicts semantically — reconstruct both sides' intent, then sweep the cleanly-merged files for breakage git never flagged |
 
 Typical flow: `/tbox:worktree fix-123` → `/tbox:cross-review 123` → fix → reply → repeat.
 
@@ -45,6 +47,11 @@ drafted reply.
 For spec-driven work: write the change, then `/tbox:openspec-review <change-id>` before
 implementing it. It is review-only — it never edits the change, and writes its report to
 the scratchpad rather than into the change directory, which gets archived.
+
+`/tbox:smart-merge` is for the conflicts where a clean-looking resolution is the
+failure mode: it reconstructs what each side meant before editing anything, and its
+Phase 4 sweep looks for callers your branch added against signatures the target branch
+changed — breakage that merges without a single conflict marker.
 
 **Dependency:** `/tbox:cross-review`, `/tbox:cross-review-n`, and `/tbox:openspec-review` drive Codex through
 the [`codex`](https://github.com/openai/codex-plugin-cc) plugin, declared in
