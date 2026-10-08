@@ -13,7 +13,7 @@
       "source": "./plugins/tbox",
       "displayName": "toolbox",
       "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), artifact improvement (/tbox:improve), and semantic merge-conflict resolution (/tbox:smart-merge)",
-      "version": "1.7.0",
+      "version": "1.8.0",
       "author": {
         "name": "VladyKoo"
       },

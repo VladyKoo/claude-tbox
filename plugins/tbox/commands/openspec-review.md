@@ -1,6 +1,6 @@
 ---
 description: Cross-review an OpenSpec change with Codex plus an independent Claude pass — validates it, verifies every claim it makes about the code, and reports. Review only; writes nothing to the change.
-argument-hint: '[change-id] [--wait] [extra focus text]'
+argument-hint: '[change-id] [--wait] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(openspec:*), Bash(git:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .openspec-review-context.md)
 ---
 
@@ -23,8 +23,41 @@ reviewing uncommitted work. If the user wants a diff reviewed, that is
 ## Argument parsing
 
 The change id is the first argument that matches a directory under
-`openspec/changes/`. `--wait` may appear in any order; all remaining text is
-extra review focus. Below, `<id>` means the resolved change id.
+`openspec/changes/`. `--wait`, `--codex-model <id>`, and `--claude-model <name>`
+may appear in any order; all remaining text is extra review focus. The token after
+`--codex-model` or `--claude-model` is its value, never focus text. `--claude-model`
+must be one of `fable`, `opus`, `sonnet` — anything else: stop and say so. Below,
+`<id>` means the resolved change id.
+
+## Model selection
+
+Same rules as `/tbox:cross-review`, restated here because this file runs alone:
+
+| Reviewer | Model | Override |
+|---|---|---|
+| Claude subagent | `fable` | `--claude-model fable\|opus\|sonnet` |
+| Codex | the default from `~/.codex/config.toml` (no `--model` passed) | `--codex-model <id>` |
+
+Record which models actually ran; the digest, the report, and the table headers
+name the real reviewers. The Codex model is the `--codex-model` value, else `model`
+from `~/.codex/config.toml` — the companion's output does not print it.
+
+**Fable unavailable → ask, do not switch.** Dispatch the Claude subagent (4b)
+**before** launching Codex (4a), and check the dispatch result first. If the
+`Agent` call itself fails (model unavailable, usage limit) before the subagent does
+any work, stop and tell the user in two lines: what failed, and that the pass can
+run on `opus` instead. Wait for an explicit yes, then re-dispatch with
+`model: "opus"` and continue with 4a. On "no", stop the run. A subagent that ran
+and returned findings is a result, not a failure.
+
+**Codex quota exhausted → second Claude pass.** Codex's usage limit is per account,
+not per model. When the companion fails before any review output with a usage or
+rate limit (`usage_limit_exceeded`, "rate limit", "limit reached", or a reset
+time), do not retry Codex. Dispatch a second Claude subagent with the same 4b
+prompt on a **different** Claude model — `opus` when the first pass is on `fable`
+or `sonnet`, `sonnet` when it is on `opus` — and tell the user in one line. If that
+second dispatch also fails, continue with the single Claude pass and label the run
+single-reviewer everywhere. Any other Codex failure is reported, not worked around.
 
 If no argument matches a directory, decide which case this is: when the first
 non-flag argument is a single id-shaped token (one word, kebab-case), treat it as
@@ -175,13 +208,17 @@ disguise.
 
 ## Step 4 — launch both reviews in parallel
 
+Order: dispatch 4b first, confirm the dispatch succeeded, then launch 4a. The two
+still overlap — the dispatch returns immediately.
+
 ### 4a — Codex
 
 Use the plugin path resolved in step 1, as a literal string.
 
 Use the `task` verb, not `review`. An OpenSpec change has no diff to review — its
 files are usually untracked, and `review --base` would see nothing. Omit
-`--write`: `task` is read-only by default and must stay that way here.
+`--write`: `task` is read-only by default and must stay that way here. Add
+`--model "<id>"` (quoted) only when `--codex-model` was passed.
 
 ```bash
 node "<plugin-path>/scripts/codex-companion.mjs" task \
@@ -215,7 +252,8 @@ with `node "<plugin-path>/scripts/codex-companion.mjs" result`.
 
 Do NOT review the change in this context. You have read the gate output and will
 soon read Codex's findings, so a pass done here is not independent. Dispatch a
-`general-purpose` subagent with a clean context.
+`general-purpose` subagent with a clean context, with `model` set per Model
+selection.
 
 Give it exactly this and nothing more:
 
@@ -235,7 +273,8 @@ Give it exactly this and nothing more:
 
 ## Step 5 — collect both
 
-Wait for both to complete; their notifications arrive on their own. Do not start
+Wait for both reviewers to complete — Codex and the subagent, or, when Codex failed
+on quota, the two subagents; their notifications arrive on their own. Do not start
 synthesizing until both results are in hand (in `--wait` mode Codex's stdout
 lands first — set it aside), and form no findings of your own in the meantime. Your role here is synthesis and verification, not a third review.
 
@@ -272,8 +311,10 @@ message. Text emitted before a tool call may never reach the user.
 
 1. **Gate line** — `<id>`, validate result, delta count with operations, the
    base-spec check outcome for each MODIFIED delta, and the tree state
-   (`clean at <sha>` or `dirty: <n> source files`). If dirty, add one line naming
-   which axis-B findings are provisional as a result.
+   (`clean at <sha>` or `dirty: <n> source files`), and the reviewers that
+   actually ran (e.g. `Codex gpt-6-sol + Claude fable`, or `Codex unavailable
+   (quota) — Claude fable + Claude opus`). If dirty, add one line naming which
+   axis-B findings are provisional as a result.
 2. **Bottom line** — one or two sentences: is this change safe to implement, and
    what is the single most important thing to settle first.
 3. **Findings table** — agreed findings first:
@@ -316,8 +357,13 @@ Report shape:
 # OpenSpec cross-review: <id>
 
 `openspec validate <id> --strict` — <result>. <n> deltas: <list with operations>.
-Two independent passes — OpenAI Codex and Claude — with disagreements surfaced
-rather than merged.
+Two independent passes — OpenAI Codex `<codex-model>` and Claude `<claude-model>` —
+with disagreements surfaced rather than merged.
+<!-- Claude-only fallback: intro becomes "OpenAI Codex was unavailable (<reason>);
+two independent Claude passes — `<model A>` and `<model B>` — ...". Then replace
+EVERY "Codex" / "Claude" label in the report — the table columns, the "Codex only /
+Claude only" section suffixes, and the footer (drop "+ OpenAI Codex") — with the
+two model names, e.g. "Claude fable" / "Claude opus". -->
 
 **Bottom line:** <is it safe to implement, and what must be settled first>.
 

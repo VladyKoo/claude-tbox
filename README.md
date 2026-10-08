@@ -29,10 +29,10 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 | --- | --- |
 | `/tbox:worktree <task> [project]` | Create a worktree off the remote default branch in the central worktrees folder, register it in the enclosing `.code-workspace`, and offer to enter it |
 | `/tbox:worktree-remove [task] [project]` | Remove that worktree, its branch, and its workspace entry |
-| `/tbox:cross-review <pr> \| --local [--wait]` | Review a PR — or, with `--local`, the uncommitted working tree — with Codex plus an independent Claude pass |
-| `/tbox:cross-review-n <pr> \| --local [cycles=3]` | Run cross-review N times with rotating focus lenses, then vote-count the findings |
+| `/tbox:cross-review <pr> \| --local [--wait] [--codex-model <id>] [--claude-model <name>]` | Review a PR — or, with `--local`, the uncommitted working tree — with Codex plus an independent Claude pass. Claude pass on `fable` (asks before switching to `opus` if unavailable), Codex on its configured default model; runs a second Claude pass instead when the Codex quota is exhausted |
+| `/tbox:cross-review-n <pr> \| --local [cycles=3] [--codex-model <id>] [--claude-model <name>]` | Run cross-review N times with rotating focus lenses, then vote-count the findings; same model selection as cross-review, carried across cycles |
 | `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code and decide what to fix, skip, push back on, or ask about |
-| `/tbox:openspec-review [change-id] [--wait]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report |
+| `/tbox:openspec-review [change-id] [--wait] [--codex-model <id>] [--claude-model <name>]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report; same model selection as cross-review |
 | `/tbox:improve [file] [focus]` | Critically review and improve an artifact — code, prompt, skill, doc, or config — preserving its intent and behavior |
 | `/tbox:smart-merge [target-branch]` | Resolve merge/rebase conflicts semantically — reconstruct both sides' intent, then sweep the cleanly-merged files for breakage git never flagged |
 

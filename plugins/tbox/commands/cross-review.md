@@ -1,6 +1,6 @@
 ---
 description: Cross-review a GitHub PR — or, with --local, the uncommitted working tree — with Codex plus an independent Claude pass; auto-posts the PR comment when a verified blocker/major finding survives (suppress with --no-post)
-argument-hint: '<pr-number-or-url> | --local [--wait] [--no-post] [extra focus text]'
+argument-hint: '<pr-number-or-url> | --local [--wait] [--no-post] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
 ---
 
@@ -20,9 +20,12 @@ Two modes, chosen by the arguments:
   current directory — staged, unstaged, and untracked changes relative to `HEAD`.
   Nothing is fetched or checked out, and nothing is ever posted.
 
-`--wait`, `--no-post`, and any remaining text may appear in any order;
-the remaining text is extra review focus. If neither `--local` nor a PR number is
-present, stop and ask for one. If both are present, stop and ask which was meant.
+`--wait`, `--no-post`, `--codex-model <id>`, `--claude-model <name>`, and any
+remaining text may appear in any order; the remaining text is extra review focus.
+The token after `--codex-model` or `--claude-model` is its value, never focus text.
+`--claude-model` must be one of `fable`, `opus`, `sonnet` — anything else: stop and
+say so. If neither `--local` nor a PR number is present, stop and ask for one. If
+both are present, stop and ask which was meant.
 
 Below, steps marked **PR mode only** are skipped in local mode; each such step
 says what local mode does instead.
@@ -31,6 +34,39 @@ Codex always runs `adversarial-review`: it is deliberately biased toward finding
 problems (high recall, more noise), and it is the only Codex verb that accepts a
 prompt — the plain `review` verb rejects focus text, so it could not be pointed at
 the context bundle.
+
+## Model selection
+
+Record which models actually ran — the digest, the draft, and the table headers
+name the real reviewers, never the intended ones. The Codex model is the
+`--codex-model` value, else `model` from `~/.codex/config.toml` (read it once in
+4a); the companion's output does not print it.
+
+| Reviewer | Model | Override |
+|---|---|---|
+| Claude subagent | `fable` | `--claude-model fable\|opus\|sonnet` |
+| Codex | the default from `~/.codex/config.toml` (no `--model` passed) | `--codex-model <id>` |
+
+**Fable unavailable → ask, do not switch.** Dispatch the Claude subagent (4b)
+**before** launching Codex (4a), and check the dispatch result first. If the
+`Agent` call itself fails (model unavailable, usage limit) before the subagent does
+any work, stop and tell the user in two lines: what failed, and that the pass can
+run on `opus` instead. Wait for an explicit yes, then re-dispatch the same prompt
+with `model: "opus"` and continue with 4a. On "no", stop the run — nothing has been
+launched yet. A subagent that ran and returned findings — even thin ones — is a
+result, not a failure.
+
+**Codex quota exhausted → second Claude pass.** Codex's usage limit is per account,
+not per model, so another Codex model would fail the same way. When the companion
+fails before any review output with a usage or rate limit (`usage_limit_exceeded`,
+"rate limit", "limit reached", or a reset time), do not retry Codex. Dispatch a
+second Claude subagent with the same 4b prompt on a **different** Claude model —
+`opus` when the first pass is on `fable` or `sonnet`, `sonnet` when it is on
+`opus` — and tell the user in one line, with the reset time if the error gave one.
+The second subagent starts from a clean context, so the two passes stay
+independent. If that second dispatch also fails, do not ask: continue with the
+single Claude pass and label the run single-reviewer everywhere. Any other Codex
+failure is reported, not worked around.
 
 ## Assumptions about the workspace
 
@@ -137,6 +173,9 @@ is untracked and temporary; it is deleted in step 6.
 
 ## Step 4 — launch both reviews in parallel
 
+Order: dispatch 4b first, confirm the dispatch succeeded, then launch 4a. The two
+still overlap — the dispatch returns immediately.
+
 ### 4a — Codex
 
 Resolve the plugin path first, as its own command (a plain pipeline, so it matches
@@ -165,7 +204,8 @@ conventions, and check whether a concern is already covered by an existing test 
 guarded by surrounding code before flagging it. <one-sentence stated intent>"
 ```
 
-`<scope-flag>` is `--base "origin/<baseRefName from step 3>"` in PR mode and
+Add `--model "<id>"` (quoted) only when `--codex-model` was passed. `<scope-flag>` is
+`--base "origin/<baseRefName from step 3>"` in PR mode and
 `--scope working-tree` in local mode. The working-tree scope diffs staged, unstaged,
 and untracked files against `HEAD` — the same set the Claude pass reviews below.
 `.cross-review-context.md` is itself untracked, so Codex will see it in its diff;
@@ -194,8 +234,9 @@ claims to do — and against this repo's actual conventions — not just against
 
 Do NOT review the diff in this context: by now you have read the PR discussion and
 will soon see Codex's output, so a pass done here is not independent. Dispatch a
-`general-purpose` subagent instead — it starts with a clean context and, running in
-the background, finishes without ever seeing Codex's findings.
+`general-purpose` subagent instead, with `model` set per Model selection — it
+starts with a clean context and, running in the background, finishes without ever
+seeing Codex's findings.
 
 Send it a prompt with exactly this information and nothing more:
 
@@ -216,8 +257,9 @@ Send it a prompt with exactly this information and nothing more:
 
 ## Step 5 — collect both results
 
-Wait for both the Codex run and the subagent to complete (their completion
-notifications arrive on their own — do not busy-poll either one). Do not read
+Wait for both reviewers to complete — the Codex run and the subagent, or, when
+Codex failed on quota, the two subagents (their completion notifications arrive on
+their own — do not busy-poll either one). Do not read
 either result until both are in hand, and form no conclusions of your own in the
 meantime — in this command your role is synthesis and verification, not a third
 review.
@@ -260,7 +302,9 @@ per-finding prose, no claims-verified list, no fenced copy of the draft.
 
 1. **Context line** — PR mode: `<short-sha>` vs `<baseRef>`, `+/−` and file count.
    Local mode: `working tree at <short-sha> (<branch>)`, with the staged/unstaged/
-   untracked counts.
+   untracked counts. Both: the reviewers that actually ran, e.g.
+   `Codex gpt-6-sol + Claude fable`, or `Codex unavailable (quota, resets <time>)
+   — Claude fable + Claude opus`.
 2. **Bottom line** — one or two sentences: does anything block merge, and what is
    the single most important thing to act on.
 3. **Findings table** — one row per finding, agreed findings first:
@@ -268,6 +312,7 @@ per-finding prose, no claims-verified list, no fenced copy of the draft.
    | # | Finding | Codex | Claude | Verdict |
    |---|---------|-------|--------|---------|
 
+   In the Claude-only fallback the columns are the two Claude models instead.
    Short title, each reviewer's severity (`—` if they missed it), short-phrase
    verdict. This table is the digest's payload — a user should scan it and know
    what happened without opening anything.
@@ -317,8 +362,14 @@ seconds from the table and be able to jump straight to any finding's detail.
 # Cross-review: Codex + Claude
 
 Reviewed `<short-sha>` against `<baseRef>` (<+/-, files>). Two independent passes —
-OpenAI Codex (adversarial) and Claude — with
+OpenAI Codex `<codex-model>` (adversarial) and Claude `<claude-model>` — with
 disagreements surfaced rather than merged.
+<!-- Claude-only fallback: intro becomes "OpenAI Codex was unavailable (<reason>);
+two independent Claude passes — `<model A>` and `<model B>` — with disagreements
+surfaced rather than merged." Then replace EVERY "Codex" / "Claude" label in the
+draft — the H1, the bottom line, the table columns, the "Codex only / Claude only"
+section suffixes, the "Claude's read:" label, and both footers (drop "+ OpenAI
+Codex") — with the two model names, e.g. "Claude fable" / "Claude opus". -->
 <!-- local mode: "Reviewed the uncommitted working tree at `<short-sha>` (<branch>;
 <n> staged, <n> unstaged, <n> untracked files)." — keep the rest of the sentence. -->
 <!-- local mode: rename "Claims verified as holding" to "Intent verified as

@@ -1,6 +1,6 @@
 ---
 description: Run cross-review N times with rotating focus lenses over a PR — or, with --local, the uncommitted working tree — then combine all cycles into one vote-counted verdict; auto-posts when a blocker/major finding has ≥2 votes or is verified (suppress with --no-post)
-argument-hint: '<pr-number-or-url> | --local [cycles=3] [--no-post] [extra focus text]'
+argument-hint: '<pr-number-or-url> | --local [cycles=3] [--no-post] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
 ---
 
@@ -23,8 +23,8 @@ Same as the base command, including its PR-vs-`--local` mode choice, plus: the
 first bare number that is **not** the PR number (and is ≤ 10) is the cycle
 count — in local mode there is no PR number, so the first bare number ≤ 10 is
 the cycle count. Default is **3**; hard cap 5 — more than that is cost without
-coverage. Extra focus text passes through to every cycle;
-`--no-post` applies to the Post-or-hold step at the end. `--wait` is
+coverage. Extra focus text, `--codex-model`, and `--claude-model` pass through to
+every cycle; `--no-post` applies to the Post-or-hold step at the end. `--wait` is
 meaningless here (cycles are always sequential with Codex in the foreground) —
 ignore it if present.
 
@@ -79,6 +79,13 @@ the tree hash `git diff HEAD | git hash-object --stdin`.
 The context bundle stays on disk for the whole run and is deleted only in the
 Combine step.
 
+**Model selection carries across cycles.** The base command's Model selection
+applies, with one rule added: a decision made in cycle *i* holds for cycle *i+1*
+onward. Ask about Fable at most once per run; a "no" stops the run before cycle 1.
+Once Codex has failed on quota, every remaining cycle runs step A with both Claude
+subagents in parallel and skips step B — Codex is not retried. Each per-cycle file
+header records which reviewer models ran.
+
 **Local mode: the tree must not move during the run.** Every cycle reviews the
 working tree as it is at that moment, so an edit between cycles makes the votes
 count different code. Tell the user this in one line before cycle 1. Recompute
@@ -107,12 +114,18 @@ verbatim, no analysis, no commentary in the session beyond one status line
 - `<scratchpad>/cross-review-<slug>-cycle-<i>-codex.md`
 - `<scratchpad>/cross-review-<slug>-cycle-<i>-claude.md`
 
+Under the Codex-quota fallback the second Claude pass writes
+`<scratchpad>/cross-review-<slug>-cycle-<i>-claude-<model>.md` instead of the
+`-codex.md` file, so Combine never attributes a Claude result to Codex.
+
 Each file starts with a header line recording the cycle number and lens.
 Then start the next cycle. Do not read the files back until all cycles finish.
 
-If a cycle fails outright (Codex error, subagent death), record the failure in
-that cycle's file, tell the user in one line, and continue with the remaining
-cycles — a lost cycle degrades the vote counts, it does not abort the run.
+If a cycle fails outright (subagent death, a Codex error that is not a quota
+failure), record the failure in that cycle's file, tell the
+user in one line, and continue with the remaining cycles — a lost cycle degrades
+the vote counts, it does not abort the run. A cycle completed under the Claude-only
+fallback is a full cycle: two reviewers, two votes.
 
 ## Combine — after the last cycle
 
@@ -145,7 +158,9 @@ Base command's step 6 digest shape, with two changes:
 - The findings table gains a **Votes** column (`4/6`) and is sorted by votes
   descending, then severity.
 - The context line states the cycle count and lens list, so the reader knows
-  what 6 votes means.
+  what 6 votes means — and, if Codex dropped out mid-run, which cycles ran
+  Claude-only. In that case the vote list names reviewer and model per vote
+  (e.g. `codex ×2, claude-opus ×1`) instead of relying on the two column headers.
 
 Same digest discipline: no per-cycle recaps, no verbatim output.
 
