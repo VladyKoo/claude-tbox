@@ -170,8 +170,7 @@ it with:
 <!-- audit-review: target=<pr-or-file> head=<full-40-char-sha> -->
 ```
 
-Do not print the report. Print only this digest — target 15 lines, hard cap
-25, the table exempt:
+Do not print the report. Print only this digest:
 
 1. Context line from ANCHOR, plus `<a> active / <s> settled`.
 2. Bottom line — one or two sentences: how many FIX, how much of the review

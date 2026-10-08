@@ -264,7 +264,7 @@ Disagreement is the point. Do not average the two reviewers, and do not drop a
 finding because you disagree with it — every finding survives into the report with
 its original severity.
 
-### The session digest — target ~20 lines, hard cap 30
+### The session digest
 
 Print exactly these and nothing else — and print them **after** step 7's report
 file is written, so the digest and the report path land together in your final

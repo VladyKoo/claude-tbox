@@ -1,6 +1,6 @@
 ---
 description: Cross-review a GitHub PR — or, with --local, the uncommitted working tree — with Codex plus an independent Claude pass; auto-posts the PR comment when a verified blocker/major finding survives (suppress with --no-post)
-argument-hint: '<pr-number-or-url> | --local [--wait] [--regular] [--no-post] [extra focus text]'
+argument-hint: '<pr-number-or-url> | --local [--wait] [--no-post] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
 ---
 
@@ -20,22 +20,22 @@ Two modes, chosen by the arguments:
   current directory — staged, unstaged, and untracked changes relative to `HEAD`.
   Nothing is fetched or checked out, and nothing is ever posted.
 
-`--wait`, `--regular`, `--no-post`, and any remaining text may appear in any order;
+`--wait`, `--no-post`, and any remaining text may appear in any order;
 the remaining text is extra review focus. If neither `--local` nor a PR number is
 present, stop and ask for one. If both are present, stop and ask which was meant.
 
 Below, steps marked **PR mode only** are skipped in local mode; each such step
 says what local mode does instead.
 
-`--regular` selects Codex's standard `review` verb instead of the default
-`adversarial-review`. Adversarial is deliberately biased toward finding problems
-(high recall, more noise); regular is a balanced pass with fewer speculative
-findings. Below, `<review-verb>` means whichever was selected.
+Codex always runs `adversarial-review`: it is deliberately biased toward finding
+problems (high recall, more noise), and it is the only Codex verb that accepts a
+prompt — the plain `review` verb rejects focus text, so it could not be pointed at
+the context bundle.
 
 ## Assumptions about the workspace
 
-- PR mode: the current directory is a git worktree that was created **from master**.
-  The PR branch is NOT checked out yet.
+- PR mode: the current directory is a git worktree. The PR branch is NOT checked
+  out yet.
 - Local mode: the current directory is the repo or worktree holding the uncommitted
   changes. It may be on any branch.
 - Other worktrees for this repo may exist and may already have branches checked out.
@@ -112,8 +112,9 @@ worktree happens to have:
 git fetch origin <baseRefName>
 ```
 
-Write a 2-4 sentence summary of the PR's **stated intent**, and note any existing
-review comments or concerns already raised. This step needs network and runs on your
+From these, distill the one-sentence **stated intent** that goes into the Codex
+prompt in step 4a, and note any review concerns already raised; the full title, body,
+and discussion go into the bundle below. This step needs network and runs on your
 side — Codex cannot fetch any of it (its review sandbox is read-only, which blocks
 network). But that sandbox CAN read files in this worktree — so hand your network
 findings to Codex through a file.
@@ -150,12 +151,11 @@ suggest `/codex:setup`. Otherwise take the printed path and use it **as a litera
 string** in every subsequent command — shell variables do not survive between Bash
 calls, so never rely on `$CODEX_PLUGIN` set in an earlier call.
 
-The calling contract for `codex-companion.mjs` is owned by the plugin's
-`codex:codex-cli-runtime` skill; if the invocation below fails in an unexpected way,
-consult that skill rather than guessing at flags.
+If the invocation below fails in an unexpected way, run the script with no
+arguments — it prints its usage — rather than guessing at flags.
 
 ```bash
-node "<plugin-path>/scripts/codex-companion.mjs" <review-verb> \
+node "<plugin-path>/scripts/codex-companion.mjs" adversarial-review \
   <scope-flag> \
   "Before reviewing, read .cross-review-context.md at the repo root — it contains \
 the change's stated intent, prior review discussion, and this repo's review conventions. \
@@ -177,12 +177,15 @@ Execution mode:
   the subagent in 4b, so the two still overlap. Set the Bash timeout to its maximum
   (600000 ms) — a review routinely outlives the default timeout, and a killed
   foreground run wastes the whole pass.
-- Otherwise run it via `Bash(..., run_in_background: true)` and tell the user it
-  started. Background commands re-invoke you when they exit, so do **not** poll in a
-  loop — once notified of completion, fetch the output with
-  `node "<plugin-path>/scripts/codex-companion.mjs" result`. Use
-  `node "<plugin-path>/scripts/codex-companion.mjs" status` only as a manual fallback
-  if no completion notification arrives.
+- Otherwise run the same foreground invocation through
+  `Bash(..., run_in_background: true)` and tell the user it started. The harness
+  re-invokes you when it exits and that job's stdout **is** the review — do not
+  poll, and do not call `result` on the happy path.
+
+Never pass the companion's own `--background` flag. It returns a job id immediately
+and exits, so the Bash job completes in a second with no review in it. `result` and
+`status` are fallbacks for exactly that case — if the stdout comes back as a job id,
+fetch the review with `node "<plugin-path>/scripts/codex-companion.mjs" result`.
 
 The context bundle plus the focus text is how Codex judges the diff against what it
 claims to do — and against this repo's actual conventions — not just against itself.
@@ -250,15 +253,14 @@ Disagreement is the point of this command. Do not smooth it over, do not average
 two opinions, and do not drop a finding just because you disagree with it — every
 finding either reviewer raised survives into the draft with its original severity.
 
-### The session digest — target ~20 lines, hard cap 30
+### The session digest
 
 Print exactly these five things and nothing else. No verbatim reviewer output, no
 per-finding prose, no claims-verified list, no fenced copy of the draft.
 
 1. **Context line** — PR mode: `<short-sha>` vs `<baseRef>`, `+/−` and file count.
    Local mode: `working tree at <short-sha> (<branch>)`, with the staged/unstaged/
-   untracked counts. Both: which Codex mode ran (adversarial or regular) so the noise
-   level is legible.
+   untracked counts.
 2. **Bottom line** — one or two sentences: does anything block merge, and what is
    the single most important thing to act on.
 3. **Findings table** — one row per finding, agreed findings first:
@@ -315,7 +317,7 @@ seconds from the table and be able to jump straight to any finding's detail.
 # Cross-review: Codex + Claude
 
 Reviewed `<short-sha>` against `<baseRef>` (<+/-, files>). Two independent passes —
-OpenAI Codex (<adversarial or regular, per the selected verb>) and Claude — with
+OpenAI Codex (adversarial) and Claude — with
 disagreements surfaced rather than merged.
 <!-- local mode: "Reviewed the uncommitted working tree at `<short-sha>` (<branch>;
 <n> staged, <n> unstaged, <n> untracked files)." — keep the rest of the sentence. -->

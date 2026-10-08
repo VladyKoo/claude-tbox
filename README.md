@@ -29,7 +29,7 @@ Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
 | --- | --- |
 | `/tbox:worktree <task> [project]` | Create a worktree off the remote default branch in the central worktrees folder, register it in the enclosing `.code-workspace`, and offer to enter it |
 | `/tbox:worktree-remove [task] [project]` | Remove that worktree, its branch, and its workspace entry |
-| `/tbox:cross-review <pr> \| --local [--wait] [--regular]` | Review a PR — or, with `--local`, the uncommitted working tree — with Codex plus an independent Claude pass |
+| `/tbox:cross-review <pr> \| --local [--wait]` | Review a PR — or, with `--local`, the uncommitted working tree — with Codex plus an independent Claude pass |
 | `/tbox:cross-review-n <pr> \| --local [cycles=3]` | Run cross-review N times with rotating focus lenses, then vote-count the findings |
 | `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code and decide what to fix, skip, push back on, or ask about |
 | `/tbox:openspec-review [change-id] [--wait]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report |

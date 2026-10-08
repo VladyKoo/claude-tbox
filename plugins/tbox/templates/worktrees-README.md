@@ -17,7 +17,7 @@ Created by the `tbox` Claude Code plugin:
 
 `<task>` is also the branch name. The branch is created from the project's
 **remote default branch** — resolved per repo from `origin/HEAD`, never
-hardcoded, since `master`, `main`, and `dev` are all in use here — and fetched
+hardcoded, since the default branch differs per repo — and fetched
 first, so a new worktree starts from the current remote tip.
 
 The leaf name is the project's **directory basename only**, so this namespace is

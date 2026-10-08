@@ -30,10 +30,9 @@ workspace file. If it matches nothing, list the candidates and stop.
 Then validate the resolved repo root:
 
 - It must be a git work tree (`git -C <root> rev-parse --is-inside-work-tree`).
-- It must **not** be `$HOME`. The home directory is itself a git repo on this
-  machine, so a cwd outside any project resolves there — that is never the
-  intended target. If the root is `$HOME`, stop and say the session isn't
-  inside a project.
+- It must **not** be `$HOME`. When the home directory is itself a git repo, a
+  cwd outside any project resolves there — that is never the intended target.
+  If the root is `$HOME`, stop and say the session isn't inside a project.
 - It must not already be a worktree (`git -C <root> rev-parse
   --git-common-dir` differs from `.git`). If the session is already in a
   worktree, resolve the **main** checkout from the common dir and use that as
@@ -122,8 +121,8 @@ Only when all four checks are clear, continue.
 
 ## Step 4 — determine the remote base branch
 
-Never hardcode `master`. The default branch differs per repo in this workspace
-(`master`, `main`, and `dev` are all in use), so resolve it:
+Never hardcode `master`. The default branch differs per repo (`master`, `main`,
+and `dev` are all common), so resolve it:
 
 ```bash
 git -C <PROJECT_ROOT> symbolic-ref --short refs/remotes/origin/HEAD

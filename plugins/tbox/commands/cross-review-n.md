@@ -1,6 +1,6 @@
 ---
 description: Run cross-review N times with rotating focus lenses over a PR — or, with --local, the uncommitted working tree — then combine all cycles into one vote-counted verdict; auto-posts when a blocker/major finding has ≥2 votes or is verified (suppress with --no-post)
-argument-hint: '<pr-number-or-url> | --local [cycles=3] [--regular] [--no-post] [extra focus text]'
+argument-hint: '<pr-number-or-url> | --local [cycles=3] [--no-post] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
 ---
 
@@ -23,7 +23,7 @@ Same as the base command, including its PR-vs-`--local` mode choice, plus: the
 first bare number that is **not** the PR number (and is ≤ 10) is the cycle
 count — in local mode there is no PR number, so the first bare number ≤ 10 is
 the cycle count. Default is **3**; hard cap 5 — more than that is cost without
-coverage. `--regular` and extra focus text pass through to every cycle;
+coverage. Extra focus text passes through to every cycle;
 `--no-post` applies to the Post-or-hold step at the end. `--wait` is
 meaningless here (cycles are always sequential with Codex in the foreground) —
 ignore it if present.
@@ -72,7 +72,7 @@ PR discussion, fetch the base branch. Local mode: require a dirty tree, report
 its counts, no fetch or checkout. Both: write `.cross-review-context.md` (with
 the user's extra focus text in its section 5, as usual). Also resolve the Codex
 plugin path once (base step 4a's `ls -d ... | sort -V | tail -1`) and reuse the
-literal path in every cycle. Record `<review-verb>` plus, in PR mode, `<pr>`,
+literal path in every cycle. Record, in PR mode, `<pr>`,
 `<head-sha>`, `<baseRefName>`; in local mode, `<head-sha>`, `<branch>`, and
 the tree hash `git diff HEAD | git hash-object --stdin`.
 
@@ -147,7 +147,7 @@ Base command's step 6 digest shape, with two changes:
 - The context line states the cycle count and lens list, so the reader knows
   what 6 votes means.
 
-Same hard cap: ~20 lines, 30 max. No per-cycle recaps, no verbatim output.
+Same digest discipline: no per-cycle recaps, no verbatim output.
 
 ## Draft — one combined PR comment
 
