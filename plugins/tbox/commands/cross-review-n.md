@@ -1,11 +1,11 @@
 ---
-description: Run cross-review N times with rotating focus lenses over a PR — or, with --local, the uncommitted working tree — then combine all cycles into one vote-counted verdict; auto-posts when a blocker/major finding has ≥2 votes or is verified (suppress with --no-post)
-argument-hint: '<pr-number-or-url> | --local [cycles=3] [--no-post] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
-allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(rm .cross-review-context.md)
+description: Run cross-review N times with rotating focus lenses over a PR — or, with no PR number, the current branch including uncommitted work — inside one temporary worktree, then combine all cycles into one vote-counted verdict; auto-posts when a blocker/major finding has ≥2 votes or is verified (suppress with --no-post)
+argument-hint: '[<pr-number-or-url>] [cycles=3] [--no-post] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
+allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(mktemp:*), Bash(tar:*)
 ---
 
-Run the `/tbox:cross-review` procedure multiple times over the same PR — or, with
-`--local`, the same uncommitted working tree — each cycle with a different review
+Run the `/tbox:cross-review` procedure multiple times over the same PR — or, with no
+PR number, the same snapshot of the current branch — each cycle with a different review
 lens, then merge every cycle's findings into a single vote-counted report. Built
 for huge changes where one pass has too much surface to cover reliably.
 
@@ -19,9 +19,9 @@ Raw arguments: `$ARGUMENTS`
 
 ## Argument parsing
 
-Same as the base command, including its PR-vs-`--local` mode choice, plus: the
+Same as the base command, including its PR-vs-branch mode choice, plus: the
 first bare number that is **not** the PR number (and is ≤ 10) is the cycle
-count — in local mode there is no PR number, so the first bare number ≤ 10 is
+count — in branch mode there is no PR number, so the first bare number ≤ 10 is
 the cycle count. Default is **3**; hard cap 5 — more than that is cost without
 coverage. Extra focus text, `--codex-model`, and `--claude-model` pass through to
 every cycle; `--no-post` applies to the Post-or-hold step at the end. `--wait` is
@@ -29,14 +29,15 @@ meaningless here (cycles are always sequential with Codex in the foreground) —
 ignore it if present.
 
 Below, `<slug>` in file names means `pr-<pr>` in PR mode and
-`local-<repo-dir-name>-<short-sha>` in local mode, matching the base command.
+`branch-<branch>-<short-head>` in branch mode, matching the base command.
 
 ## Inherited constraints — restated because they matter more here
 
 - Review only; never fix anything. Posting is gated: only via the
   Post-or-hold rule at the end of this file (which adapts the base command's
   step 8 to vote counts), never anywhere else in the run.
-- Never touch other worktrees.
+- Never touch the caller's checkout or other worktrees; all cycles review the one
+  snapshot built in Setup.
 - **Cycle independence is the whole point.** No cycle's reviewers may see any
   earlier cycle's findings. The Claude pass is always a fresh subagent; the
   main session must not paste earlier results into any prompt.
@@ -66,18 +67,18 @@ stays identical across cycles so cycles differ in attention, not information.
 
 ## Setup — once, not per cycle
 
-Run the base command's steps 1–3 exactly once, in whichever mode was selected.
-PR mode: refuse dirty tracked files, fetch and detach onto the PR head, read the
-PR discussion, fetch the base branch. Local mode: require a dirty tree, report
-its counts, no fetch or checkout. Both: write `.cross-review-context.md` (with
-the user's extra focus text in its section 5, as usual). Also resolve the Codex
-plugin path once (base step 4a's `ls -d ... | sort -V | tail -1`) and reuse the
-literal path in every cycle. Record, in PR mode, `<pr>`,
-`<head-sha>`, `<baseRefName>`; in local mode, `<head-sha>`, `<branch>`, and
-the tree hash `git diff HEAD | git hash-object --stdin`.
+Run the base command's steps 1–3 exactly once, in whichever mode was selected:
+freeze the target, build the snapshot `<snap>`, read the PR discussion where there is
+one, and write `<snap>/.cross-review-context.md` (with the user's extra focus text in
+its section 5, as usual). Also resolve the Codex plugin path once (base step 4a's
+`ls -d ... | sort -V | tail -1`) and reuse the literal path in every cycle. Record
+`<snap>`, `<head>`, `<base>`, and — PR mode — `<pr>`; branch mode — `<branch>`,
+`<commit>`, and whether uncommitted work was folded in.
 
-The context bundle stays on disk for the whole run and is deleted only in the
-Combine step.
+The snapshot and its context bundle stay for the whole run and are removed only in
+the Combine step, after verification. Because every cycle reviews the same frozen
+snapshot, the user may keep editing the caller's checkout during the run. Every stop
+after Setup runs the base command's cleanup first.
 
 **Model selection carries across cycles.** The base command's Model selection
 applies, with one rule added: a decision made in cycle *i* holds for cycle *i+1*
@@ -85,13 +86,6 @@ onward. Ask about Fable at most once per run; a "no" stops the run before cycle 
 Once Codex has failed on quota, every remaining cycle runs step A with both Claude
 subagents in parallel and skips step B — Codex is not retried. Each per-cycle file
 header records which reviewer models ran.
-
-**Local mode: the tree must not move during the run.** Every cycle reviews the
-working tree as it is at that moment, so an edit between cycles makes the votes
-count different code. Tell the user this in one line before cycle 1. Recompute
-the tree hash at the start of each cycle; if it differs from the recorded one,
-stop before launching that cycle, say which cycles already ran, and offer to
-combine what exists or restart. Do not silently continue.
 
 ## Cycle loop — for i in 1..N, strictly sequential
 
@@ -129,9 +123,7 @@ fallback is a full cycle: two reviewers, two votes.
 
 ## Combine — after the last cycle
 
-First delete `.cross-review-context.md`.
-
-Now read every per-cycle file and merge:
+Read every per-cycle file and merge:
 
 1. **Dedup by locus.** Two findings are the same finding if they point at the
    same `file:line` region (±ε) and describe the same failure mode — judge by
@@ -150,6 +142,9 @@ Now read every per-cycle file and merge:
    into the draft with their vote count as the caveat.
 4. **Severity:** take the highest severity any reviewer assigned, then note in
    the verdict if you overrode it downward with evidence.
+
+Verification reads code from `<snap>`. Once it is done, run the base command's step 6
+cleanup, which removes the snapshot and the context bundle with it.
 
 ## Report
 
@@ -170,8 +165,8 @@ Base command's step 7, with these deltas:
 
 - File: `<scratchpad>/cross-review-<slug>-combined.md`
 - Header comment additionally records `cycles=<N>`:
-  `<!-- cross-review: pr=<pr> head=<sha> base=<base> cycles=<N> -->`, or in local
-  mode the base command's local header with `cycles=<N>` appended.
+  `<!-- cross-review: pr=<pr> head=<sha> base=<base> cycles=<N> -->`, or in branch
+  mode the base command's branch header with `cycles=<N>` appended.
 - The intro sentence says N independent dual-reviewer cycles were run with
   rotating focus lenses; the table carries the Votes column.
 - Per-finding sections note which cycles raised it only when that is
@@ -181,12 +176,12 @@ Base command's step 7, with these deltas:
   unchanged. Posting is decided next, in Post-or-hold.
 
 The per-cycle raw files are left in the scratchpad for audit; mention their
-common prefix once in the digest's worktree-state line.
+common prefix once in the digest's snapshot line.
 
 ## Post or hold
 
-**Local mode always holds**, exactly as in the base command — no PR, nothing to
-post, no suggestion to commit or open one. Close with the "Draft saved" line.
+**Branch mode always holds**, exactly as in the base command — even with an open
+PR, and with no suggestion to commit, push, or open one. Close with the "Draft saved" line.
 
 Base command's step 8, with its "both reviewers raised it" test replaced by
 the vote signal this command exists to produce. **Auto-post** the combined

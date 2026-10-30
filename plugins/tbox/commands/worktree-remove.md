@@ -48,7 +48,7 @@ directory name of `WT_PATH`).
 
 **Detached HEAD is normal here, and the branch still exists.** `/tbox:worktree`
 creates the worktree *on* a branch named after `TASK`; a later review flow may
-run `git checkout --detach` inside it (`/tbox:cross-review` does), which leaves the
+run `git checkout --detach` inside it (`/tbox:cross-review` before 1.9.0 did), which leaves the
 branch behind while `worktree list` reports `(detached)`. So when `WT_BRANCH`
 is `(detached)`, resolve the owning branch by name:
 

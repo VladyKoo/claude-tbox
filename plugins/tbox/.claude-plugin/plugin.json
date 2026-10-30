@@ -3,7 +3,7 @@
   "name": "tbox",
   "displayName": "toolbox",
   "description": "Worktree lifecycle, layered PR review, OpenSpec change review, artifact improvement, and semantic merge-conflict resolution commands",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "author": {
     "name": "VladyKoo",
     "email": "vladyrais@gmail.com"
