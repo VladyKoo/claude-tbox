@@ -1,6 +1,6 @@
 ---
-description: Run cross-review N times with rotating focus lenses over a PR — or, with no PR number, the current branch including uncommitted work — inside one temporary worktree, then combine all cycles into one vote-counted verdict; auto-posts when a blocker/major finding has ≥2 votes or is verified (suppress with --no-post)
-argument-hint: '[<pr-number-or-url>] [cycles=3] [--no-post] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
+description: Run cross-review N times with rotating focus lenses over a PR — or, with no PR number, the current branch including uncommitted work — inside one temporary worktree, then combine all cycles into one vote-counted verdict; auto-posts when a blocker/major finding has ≥2 votes or is verified (suppress with --no-post); --no-codex runs two Claude passes per cycle instead
+argument-hint: '[<pr-number-or-url>] [cycles=3] [--no-post] [--no-codex] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(mktemp:*), Bash(tar:*)
 ---
 
@@ -23,8 +23,8 @@ Same as the base command, including its PR-vs-branch mode choice, plus: the
 first bare number that is **not** the PR number (and is ≤ 10) is the cycle
 count — in branch mode there is no PR number, so the first bare number ≤ 10 is
 the cycle count. Default is **3**; hard cap 5 — more than that is cost without
-coverage. Extra focus text, `--codex-model`, and `--claude-model` pass through to
-every cycle; `--no-post` applies to the Post-or-hold step at the end. `--wait` is
+coverage. Extra focus text, `--no-codex`, `--codex-model`, and `--claude-model` pass
+through to every cycle; `--no-post` applies to the Post-or-hold step at the end. `--wait` is
 meaningless here (cycles are always sequential with Codex in the foreground) —
 ignore it if present.
 
@@ -70,7 +70,7 @@ stays identical across cycles so cycles differ in attention, not information.
 Run the base command's steps 1–3 exactly once, in whichever mode was selected:
 freeze the target, build the snapshot `<snap>`, read the PR discussion where there is
 one, and write `<snap>/.cross-review-context.md` (with the user's extra focus text in
-its section 5, as usual). Also resolve the Codex plugin path once (base step 4a's
+its section 5, as usual). Unless `--no-codex` was passed, also resolve the Codex plugin path once (base step 4a's
 `ls -d ... | sort -V | tail -1`) and reuse the literal path in every cycle. Record
 `<snap>`, `<head>`, `<base>`, and — PR mode — `<pr>`; branch mode — `<branch>`,
 `<commit>`, and whether uncommitted work was folded in.
@@ -83,7 +83,7 @@ after Setup runs the base command's cleanup first.
 **Model selection carries across cycles.** The base command's Model selection
 applies, with one rule added: a decision made in cycle *i* holds for cycle *i+1*
 onward. Ask about Fable at most once per run; a "no" stops the run before cycle 1.
-Once Codex has failed on quota, every remaining cycle runs step A with both Claude
+With `--no-codex` every cycle, and once Codex has failed on quota every remaining cycle, runs step A with both Claude
 subagents in parallel and skips step B — Codex is not retried. Each per-cycle file
 header records which reviewer models ran.
 
@@ -108,7 +108,7 @@ verbatim, no analysis, no commentary in the session beyond one status line
 - `<scratchpad>/cross-review-<slug>-cycle-<i>-codex.md`
 - `<scratchpad>/cross-review-<slug>-cycle-<i>-claude.md`
 
-Under the Codex-quota fallback the second Claude pass writes
+Under the Claude-only fallback (Codex quota or `--no-codex`) the second Claude pass writes
 `<scratchpad>/cross-review-<slug>-cycle-<i>-claude-<model>.md` instead of the
 `-codex.md` file, so Combine never attributes a Claude result to Codex.
 

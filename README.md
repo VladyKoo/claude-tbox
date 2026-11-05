@@ -37,7 +37,8 @@ install in each — they have separate plugin registries.
   finding survives. Pass `--no-post` to keep everything local. Branch mode (no PR
   number) never posts.
 - **It spends quota.** Every run uses both Codex and Claude; `cross-review-n`
-  multiplies that by the number of cycles.
+  multiplies that by the number of cycles. Pass `--no-codex` to spare Codex quota
+  — two Claude passes on different models run instead.
 
 ## Plugins
 
@@ -45,8 +46,8 @@ install in each — they have separate plugin registries.
 
 | Command | Purpose |
 | --- | --- |
-| `/tbox:cross-review [pr] [--wait] [--no-post] [--codex-model <id>] [--claude-model <name>]` | Review a PR — or, with no PR number, the current branch's commits plus uncommitted work — with Codex plus an independent Claude pass, in a temporary detached worktree it removes afterwards; your checkout is never touched, so it runs from `main` or mid-work. Branch mode never auto-posts. Claude pass on `fable` (asks before switching to `opus` if unavailable), Codex on its configured default model; runs a second Claude pass instead when the Codex quota is exhausted |
-| `/tbox:cross-review-n [pr] [cycles=3] [--no-post] [--codex-model <id>] [--claude-model <name>]` | Run cross-review N times with rotating focus lenses, then vote-count the findings; same model selection as cross-review, carried across cycles |
+| `/tbox:cross-review [pr] [--wait] [--no-post] [--no-codex] [--codex-model <id>] [--claude-model <name>]` | Review a PR — or, with no PR number, the current branch's commits plus uncommitted work — with Codex plus an independent Claude pass, in a temporary detached worktree it removes afterwards; your checkout is never touched, so it runs from `main` or mid-work. Branch mode never auto-posts. Claude pass on `fable` (asks before switching to `opus` if unavailable), Codex on its configured default model; runs a second Claude pass instead when the Codex quota is exhausted, or from the start with `--no-codex` (two Claude passes on different models, e.g. `fable` + `opus`) |
+| `/tbox:cross-review-n [pr] [cycles=3] [--no-post] [--no-codex] [--codex-model <id>] [--claude-model <name>]` | Run cross-review N times with rotating focus lenses, then vote-count the findings; same model selection as cross-review, carried across cycles |
 | `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code and decide what to fix, skip, push back on, or ask about |
 | `/tbox:openspec-review [change-id] [--wait] [--codex-model <id>] [--claude-model <name>]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report; same model selection as cross-review |
 | `/tbox:smart-merge [target-branch]` | Resolve merge/rebase conflicts semantically — reconstruct both sides' intent, then sweep the cleanly-merged files for breakage git never flagged |

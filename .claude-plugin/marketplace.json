@@ -15,7 +15,7 @@
       "source": "./plugins/tbox",
       "displayName": "toolbox",
       "description": "Layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), and semantic merge-conflict resolution (/tbox:smart-merge)",
-      "version": "2.0.0",
+      "version": "2.1.0",
       "author": {
         "name": "VladyKoo"
       },

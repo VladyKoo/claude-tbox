@@ -1,6 +1,6 @@
 ---
-description: Cross-review a GitHub PR — or, with no PR number, the current branch including uncommitted work — with Codex plus an independent Claude pass, inside a temporary worktree it removes afterwards; auto-posts the PR comment when a verified blocker/major finding survives (suppress with --no-post)
-argument-hint: '[<pr-number-or-url>] [--wait] [--no-post] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
+description: Cross-review a GitHub PR — or, with no PR number, the current branch including uncommitted work — with Codex plus an independent Claude pass, inside a temporary worktree it removes afterwards; auto-posts the PR comment when a verified blocker/major finding survives (suppress with --no-post); --no-codex runs two Claude passes on different models instead
+argument-hint: '[<pr-number-or-url>] [--wait] [--no-post] [--no-codex] [--codex-model <id>] [--claude-model fable|opus|sonnet] [extra focus text]'
 allowed-tools: Read, Write, Glob, Grep, Agent, Bash(git:*), Bash(gh:*), Bash(node:*), Bash(ls:*), Bash(sort:*), Bash(tail:*), Bash(mktemp:*), Bash(tar:*)
 ---
 
@@ -23,11 +23,11 @@ Two modes, chosen by the arguments:
   since it left its base plus the staged, unstaged, and untracked changes in the
   current directory. Branch mode never auto-posts.
 
-`--wait`, `--no-post`, `--codex-model <id>`, `--claude-model <name>`, and any
-remaining text may appear in any order; the remaining text is extra review focus.
+`--wait`, `--no-post`, `--no-codex`, `--codex-model <id>`, `--claude-model <name>`,
+and any remaining text may appear in any order; the remaining text is extra review focus.
 The token after `--codex-model` or `--claude-model` is its value, never focus text.
 `--claude-model` must be one of `fable`, `opus`, `sonnet` — anything else: stop and
-say so.
+say so. `--no-codex` together with `--codex-model`: stop and say they conflict.
 
 Codex always runs `adversarial-review`: it is deliberately biased toward finding
 problems (high recall, more noise), and it is the only Codex verb that accepts a
@@ -54,6 +54,16 @@ run on `opus` instead. Wait for an explicit yes, then re-dispatch the same promp
 with `model: "opus"` and continue with 4a. On "no", stop the run — nothing has been
 launched yet. A subagent that ran and returned findings — even thin ones — is a
 result, not a failure.
+
+**`--no-codex` → two Claude passes from the start.** The user chose not to spend
+Codex quota. Skip 4a entirely — do not resolve the Codex plugin path, do not check
+that it is installed. In step 4 dispatch two 4b subagents in parallel with the same
+prompt: the first on the model above, the second on a **different** one — `opus`
+when the first is `fable` or `sonnet`, `sonnet` when it is `opus`. Fable-unavailable
+handling applies to the first dispatch as above. `--wait` has no effect. From here
+on the run is the Claude-only fallback everywhere it is mentioned (step 5, digest,
+draft, posting), with the reason `skipped (--no-codex)` in place of the quota
+reason.
 
 **Codex quota exhausted → second Claude pass.** Codex's usage limit is per account,
 not per model, so another Codex model would fail the same way. When the companion
@@ -291,7 +301,7 @@ Send it a prompt with exactly this information and nothing more:
 ## Step 5 — collect both results
 
 Wait for both reviewers to complete — the Codex run and the subagent, or, when
-Codex failed on quota, the two subagents (their completion notifications arrive on
+Codex failed on quota or `--no-codex` was passed, the two subagents (their completion notifications arrive on
 their own — do not busy-poll either one). Do not read
 either result until both are in hand, and form no conclusions of your own in the
 meantime — in this command your role is synthesis and verification, not a third
@@ -344,8 +354,9 @@ per-finding prose, no claims-verified list, no fenced copy of the draft.
 1. **Context line** — PR mode: `<short-sha>` vs `<baseRef>`, `+/−` and file count.
    Branch mode: `branch <branch> at <short-sha> vs <baseRef>`, the commit count, and
    the staged/unstaged/untracked counts folded into the snapshot. Both: the reviewers that actually ran, e.g.
-   `Codex gpt-6-sol + Claude fable`, or `Codex unavailable (quota, resets <time>)
-   — Claude fable + Claude opus`.
+   `Codex gpt-6-sol + Claude fable`, `Codex unavailable (quota, resets <time>)
+   — Claude fable + Claude opus`, or `Codex skipped (--no-codex) — Claude fable +
+   Claude opus`.
 2. **Bottom line** — one or two sentences: does anything block merge, and what is
    the single most important thing to act on.
 3. **Findings table** — one row per finding, agreed findings first:
@@ -406,6 +417,7 @@ Reviewed `<short-sha>` against `<baseRef>` (<+/-, files>). Two independent passe
 OpenAI Codex `<codex-model>` (adversarial) and Claude `<claude-model>` — with
 disagreements surfaced rather than merged.
 <!-- Claude-only fallback: intro becomes "OpenAI Codex was unavailable (<reason>);
+(with --no-codex: "OpenAI Codex was skipped (--no-codex);")
 two independent Claude passes — `<model A>` and `<model B>` — with disagreements
 surfaced rather than merged." Then replace EVERY "Codex" / "Claude" label in the
 draft — the H1, the bottom line, the table columns, the "Codex only / Claude only"

@@ -3,7 +3,7 @@
   "name": "tbox",
   "displayName": "toolbox",
   "description": "Layered PR review, OpenSpec change review, review auditing, and semantic merge-conflict resolution commands",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": {
     "name": "VladyKoo",
     "email": "vladyrais@gmail.com"
