@@ -5,22 +5,35 @@
     "name": "VladyKoo",
     "email": "vladyrais@gmail.com"
   },
-  "description": "Personal Claude Code plugins: worktree lifecycle, layered PR review, and OpenSpec change review",
-  "allowCrossMarketplaceDependenciesOn": ["openai-codex"],
+  "description": "Claude Code plugins: PR and OpenSpec review with Codex plus Claude, review auditing, and semantic merge-conflict resolution",
+  "allowCrossMarketplaceDependenciesOn": [
+    "openai-codex"
+  ],
   "plugins": [
     {
       "name": "tbox",
       "source": "./plugins/tbox",
       "displayName": "toolbox",
-      "description": "Worktree lifecycle (/tbox:worktree, /tbox:worktree-remove), layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), artifact improvement (/tbox:improve), and semantic merge-conflict resolution (/tbox:smart-merge)",
-      "version": "1.9.0",
+      "description": "Layered PR review (/tbox:cross-review, /tbox:cross-review-n, /tbox:audit-review), OpenSpec change review (/tbox:openspec-review), and semantic merge-conflict resolution (/tbox:smart-merge)",
+      "version": "2.0.0",
       "author": {
         "name": "VladyKoo"
       },
       "license": "MIT",
-      "keywords": ["worktree", "git", "code-review", "pull-request", "codex", "openspec", "merge", "rebase"],
+      "keywords": [
+        "git",
+        "code-review",
+        "pull-request",
+        "codex",
+        "openspec",
+        "merge",
+        "rebase"
+      ],
       "category": "workflow",
-      "tags": ["worktree", "review", "workflow"]
+      "tags": [
+        "review",
+        "workflow"
+      ]
     }
   ]
 }

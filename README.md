@@ -1,6 +1,7 @@
 # claude-tbox
 
-Personal Claude Code plugin marketplace.
+A small Claude Code plugin marketplace: PR and OpenSpec review that pairs Codex
+with an independent Claude pass, plus a couple of review and merge helpers.
 
 ## Install
 
@@ -18,22 +19,36 @@ Or from a local checkout:
 
 If the install summary says `Run /reload-plugins to activate.`, run that.
 
-Repeat in each config dir you use — `~/.claude` and `~/.claude-personal`
-(`claude-personal` alias) have separate plugin registries.
+If you run Claude Code with more than one config dir (`CLAUDE_CONFIG_DIR`),
+install in each — they have separate plugin registries.
+
+### Requirements
+
+- [`gh`](https://cli.github.com/), authenticated — PR mode reads and comments on PRs.
+- The [`codex`](https://github.com/openai/codex-plugin-cc) plugin and a working
+  Codex CLI login — see **Dependency** below.
+- [OpenSpec](https://github.com/Fission-AI/OpenSpec) CLI on `PATH`, for
+  `/tbox:openspec-review` only.
+
+### Before you run it
+
+- **It can post to your PR.** `/tbox:cross-review` and `/tbox:cross-review-n`
+  in PR mode post a review comment on their own when a verified blocker/major
+  finding survives. Pass `--no-post` to keep everything local. Branch mode (no PR
+  number) never posts.
+- **It spends quota.** Every run uses both Codex and Claude; `cross-review-n`
+  multiplies that by the number of cycles.
 
 ## Plugins
 
-### `tbox` — worktree lifecycle + layered review
+### `tbox` — layered review + merge help
 
 | Command | Purpose |
 | --- | --- |
-| `/tbox:worktree <task> [project]` | Create a worktree off the remote default branch in the central worktrees folder, register it in the enclosing `.code-workspace`, and offer to enter it |
-| `/tbox:worktree-remove [task] [project]` | Remove that worktree, its branch, and its workspace entry |
-| `/tbox:cross-review [pr] [--wait] [--codex-model <id>] [--claude-model <name>]` | Review a PR — or, with no PR number, the current branch's commits plus uncommitted work — with Codex plus an independent Claude pass, in a temporary detached worktree it removes afterwards; your checkout is never touched, so it runs from `main` or mid-work. Branch mode never auto-posts. Claude pass on `fable` (asks before switching to `opus` if unavailable), Codex on its configured default model; runs a second Claude pass instead when the Codex quota is exhausted |
-| `/tbox:cross-review-n [pr] [cycles=3] [--codex-model <id>] [--claude-model <name>]` | Run cross-review N times with rotating focus lenses, then vote-count the findings; same model selection as cross-review, carried across cycles |
+| `/tbox:cross-review [pr] [--wait] [--no-post] [--codex-model <id>] [--claude-model <name>]` | Review a PR — or, with no PR number, the current branch's commits plus uncommitted work — with Codex plus an independent Claude pass, in a temporary detached worktree it removes afterwards; your checkout is never touched, so it runs from `main` or mid-work. Branch mode never auto-posts. Claude pass on `fable` (asks before switching to `opus` if unavailable), Codex on its configured default model; runs a second Claude pass instead when the Codex quota is exhausted |
+| `/tbox:cross-review-n [pr] [cycles=3] [--no-post] [--codex-model <id>] [--claude-model <name>]` | Run cross-review N times with rotating focus lenses, then vote-count the findings; same model selection as cross-review, carried across cycles |
 | `/tbox:audit-review [pr\|file] [--all]` | Audit an existing review — verify each finding against the code and decide what to fix, skip, push back on, or ask about |
 | `/tbox:openspec-review [change-id] [--wait] [--codex-model <id>] [--claude-model <name>]` | Cross-review an OpenSpec change with Codex plus an independent Claude pass — validate it, verify every claim it makes about the code, and report; same model selection as cross-review |
-| `/tbox:improve [file] [focus]` | Critically review and improve an artifact — code, prompt, skill, doc, or config — preserving its intent and behavior |
 | `/tbox:smart-merge [target-branch]` | Resolve merge/rebase conflicts semantically — reconstruct both sides' intent, then sweep the cleanly-merged files for breakage git never flagged |
 
 Typical flow: `/tbox:cross-review 123` from any checkout → fix → reply → repeat. On your own branch, `/tbox:cross-review` with no number reviews it before or after the PR exists.
@@ -59,18 +74,10 @@ the [`codex`](https://github.com/openai/codex-plugin-cc) plugin, declared in
 installed automatically provided the `openai-codex` marketplace is already
 added.
 
-**Worktree location:** `${WORKTREES_DIR:-$HOME/.worktrees}/<project>/<task>`.
-Export `WORKTREES_DIR` to relocate.
-
-`${CLAUDE_PLUGIN_ROOT}/templates/worktrees-README.md` is the concept doc that
-`/tbox:worktree` seeds into the worktrees root on first use, verbatim. It is plain
-data, not a plugin component, so no manifest field references it. Edit it there
-and nowhere else — this plugin is the only thing that writes it.
-
 ## Release
 
 **Any commit that changes a shipped file bumps the version.** A command, a skill,
-an agent, a template — if it lands in the plugin, the same commit bumps `version`
+an agent — if it lands in the plugin, the same commit bumps `version`
 in **both** `plugins/tbox/.claude-plugin/plugin.json` and the marketplace entry in
 `.claude-plugin/marketplace.json`. They must agree.
 
@@ -91,3 +98,7 @@ claude plugin tag --push
 Consumers pick it up via `/plugin marketplace update tbox` then
 `/plugin update tbox@tbox`, and a session restart — commands and skills are read
 at startup.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
